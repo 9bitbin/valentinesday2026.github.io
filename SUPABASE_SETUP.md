@@ -49,15 +49,17 @@ create table public.carousel_photos (
   created_at timestamptz default now()
 );
 
--- Allow anyone to read and insert (your upload password in the app is the only gate)
+-- Allow anon (your site uses the anon key) to read and insert
 alter table public.carousel_photos enable row level security;
 
-create policy "Allow public read"
+create policy "Allow anon read"
   on public.carousel_photos for select
+  to anon
   using (true);
 
-create policy "Allow public insert"
+create policy "Allow anon insert"
   on public.carousel_photos for insert
+  to anon
   with check (true);
 ```
 
@@ -96,7 +98,32 @@ Push your repo and open the site on GitHub Pages. Unlock, then use **+ Add Photo
 ## If upload fails
 
 - **"Supabase is not configured"** → Paste the real `SUPABASE_URL` and `SUPABASE_ANON_KEY` in **script.js** (no quotes around the URL).
-- **"new row violates row-level security"** → The table needs the RLS policies from step 3 (allow select and insert).
+- **"new row violates row-level security policy"** → Run the SQL below in Supabase (**SQL Editor** → **New query** → paste → **Run**). It adds policies for the `anon` role (used by your site’s anon key).
 - **"Permission denied" or "Bucket not found"** → Ensure the bucket is named exactly `carousel`, is **Public**, and has policies that allow **insert** and **select** for the bucket.
 
 Your anon key is safe to use in the browser; RLS and Storage policies limit what users can do.
+
+---
+
+### Fix: "new row violates row-level security policy"
+
+In Supabase: **SQL Editor** → **New query**. Paste this and click **Run**:
+
+```sql
+-- Drop old policies if they exist (ignore errors if names differ)
+drop policy if exists "Allow public read" on public.carousel_photos;
+drop policy if exists "Allow public insert" on public.carousel_photos;
+
+-- Allow anon to read and insert (your site uses the anon key)
+create policy "Allow anon read"
+  on public.carousel_photos for select
+  to anon
+  using (true);
+
+create policy "Allow anon insert"
+  on public.carousel_photos for insert
+  to anon
+  with check (true);
+```
+
+Then try uploading again.
