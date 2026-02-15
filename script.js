@@ -185,7 +185,7 @@
     updateDots(); }
   function next(){ goto(idx+1); }
   function prev(){ goto(idx-1); }
-  function startAuto(){ stopAuto(); autoTimer = setInterval(next,5000); }
+  function startAuto(){ stopAuto(); autoTimer = setInterval(next,3000); }
   function stopAuto(){ if(autoTimer) clearInterval(autoTimer); autoTimer=null; }
 
   // nav buttons
