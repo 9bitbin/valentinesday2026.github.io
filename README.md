@@ -51,11 +51,14 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 - Floating hearts with random motion
 - Dark cosmic theme with pink/purple accents
 
-### 8. **Music Player**
-- Background music ("Te Amo — Franco De Vita")
-- Play/pause/stop controls
-- Volume slider
-- Minimalist controls in header
+### 8. **Supabase Music Library + Player**
+- Upload MP3s to Supabase Storage and save metadata in `music_library`
+- Upload modal with optional title (defaults to filename)
+- Drag-and-drop MP3 support on the upload form
+- Music Library panel with play/delete actions
+- Loop toggle (🔁) and auto-advance between songs
+- Top-bar progress slider with timecodes and seek support
+- Draggable library panel (position saved in localStorage)
 
 ---
 
@@ -126,6 +129,53 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 
 ---
 
+### **Phase 4.5: Carousel + Polaroid Layout Tuning** ✅
+**Changes Made:**
+- Carousel now auto-adjusts height based on the current image’s aspect ratio
+- Slide layout updated for better image containment and caption contrast
+- Polaroids resized for better visibility and reduced rotation variance
+- Responsive layout recalculation avoids unnecessary polaroid rebuilds
+
+**Result:** Cleaner display across image aspect ratios and screen sizes
+
+---
+
+### **Phase 5: Supabase Music Library (MP3 Uploads)** ✅
+**Problem:** YouTube embeds were blocked (Error 150), and local MP3s were not shareable.
+
+**Changes Made:**
+- Added `music_library` table + `music` storage bucket support
+- Built upload flow: upload to Storage, insert metadata into database
+- Created Music Library UI (panel with play/delete actions)
+- Added loop toggle (🔁) and library hide/show after unlock
+- Created [MUSIC_SETUP.md](MUSIC_SETUP.md) with SQL + setup steps
+
+**Result:** Music is now shared across devices via Supabase, with full upload + playback flow
+
+---
+
+### **Phase 6: Music UX Upgrades** ✅
+**Changes Made:**
+- Added top-bar progress slider with timecodes + seek support
+- Added “Now Playing” label and refreshed header controls
+- Made Music Library panel draggable (position saved in localStorage)
+- Added drag-and-drop MP3 upload support
+- Removed hardcoded MP3 playlist entries and local audio files
+
+**Result:** Polished, fully cloud-driven music experience with modern controls
+
+---
+
+### **Phase 7: YouTube Feature Deprecation** ✅
+**Changes Made:**
+- Replaced YouTube playback flow with Supabase MP3 uploads
+- Added [YOUTUBE_REMOVAL.md](YOUTUBE_REMOVAL.md) as a cleanup guide
+- Kept `youtube-player.js` as a legacy module (unused)
+
+**Result:** YouTube is no longer required; music is fully owned and shareable
+
+---
+
 ## 🛠️ Technical Stack
 
 - **Frontend:** Vanilla JavaScript (ES6 modules), HTML5, CSS3
@@ -141,10 +191,13 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 ```
 valentinesday2026/
 ├── index.html          # Main HTML structure
-├── script.js           # Core JavaScript logic (937 lines)
-├── styles.css          # Responsive CSS styling (1176 lines)
+├── script.js           # Core JavaScript logic
+├── styles.css          # Responsive CSS styling
 ├── FIREBASE_SETUP.md   # Firebase setup instructions (legacy)
 ├── SUPABASE_SETUP.md   # Supabase setup guide
+├── MUSIC_SETUP.md      # Music library setup (Supabase + RLS)
+├── YOUTUBE_REMOVAL.md  # YouTube removal guide (legacy)
+├── youtube-player.js   # Legacy YouTube module (unused)
 └── README.md           # This file
 ```
 
@@ -180,10 +233,41 @@ valentinesday2026/
 - `Allow anon insert`: Public write access
 - `Allow anon delete`: Public delete access
 
+### **Table: `music_library`**
+```sql
+- id (uuid, primary key)
+- title (text)
+- filename (text)
+- music_url (text)
+- file_size (bigint)
+- created_at (timestamp)
+```
+
+**RLS Policies:**
+- `Allow anon read`: Public read access
+- `Allow anon insert`: Public write access
+- `Allow anon delete`: Public delete access
+
 ### **Storage Bucket: `carousel`**
 - Public bucket
 - Stores uploaded photos
 - File naming: `{timestamp}_{sanitized_filename}`
+
+### **Storage Bucket: `music`**
+- Public bucket
+- Stores uploaded MP3 files
+- Policies (example):
+```sql
+create policy "Public upload to music"
+on storage.objects for insert
+to public
+with check (bucket_id = 'music');
+
+create policy "Public read music"
+on storage.objects for select
+to public
+using (bucket_id = 'music');
+```
 
 ---
 
@@ -194,6 +278,11 @@ valentinesday2026/
 const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 ```
+
+### **Music Setup**
+- Follow [MUSIC_SETUP.md](MUSIC_SETUP.md) to create the `music_library` table and `music` bucket
+- Ensure both table RLS and storage policies allow anonymous read/insert
+- The player now pulls tracks exclusively from Supabase (no local MP3s)
 
 ### **Upload Password** (Set in `script.js`)
 ```javascript
@@ -243,6 +332,12 @@ cd valentinesday2026
 - Verify storage bucket has INSERT policy
 - Check file size limits (default 50MB in Supabase)
 - Look for timeout errors (25s timeout configured)
+
+### **Music Upload Failing (RLS or Storage):**
+- Ensure `music_library` has anon policies for select/insert/delete
+- Ensure `music` storage bucket is public and has INSERT/SELECT policies
+- Confirm `music_url` rows are being created in `music_library`
+- If you see `new row violates row-level security policy`, recheck RLS on both table and storage
 
 ---
 
@@ -298,12 +393,10 @@ function updatePolaroidsDebounced() {
 
 ## 📊 Statistics
 
-- **Total Code:** ~3,298 lines (937 JS + 1,176 CSS + 141 HTML + 44 MD)
-- **Supabase Tables:** 2
-- **Storage Buckets:** 1
-- **Features:** 8 major systems
-- **Delete Handlers:** Consolidated to 1
-- **Animations:** Removed shake, kept fade/glow effects
+- **Supabase Tables:** 3 (`carousel_photos`, `notes`, `music_library`)
+- **Storage Buckets:** 2 (`carousel`, `music`)
+- **Major Systems:** 9 (login, carousel, polaroids, notes, timeline, background effects, music library, uploads, stats)
+- **Music Storage:** Fully cloud-based (no local MP3 dependencies)
 
 ---
 
@@ -324,7 +417,7 @@ function updatePolaroidsDebounced() {
 **Created with love by:** Your development team
 **For:** A special Valentine's Day 2026 archive
 **Built:** February 2026
-**Theme Song:** "Te Amo" by Franco De Vita
+**Theme Song:** Set by your uploaded music library
 
 ---
 
@@ -345,4 +438,4 @@ For issues or questions:
 ---
 
 **Last Updated:** February 15, 2026
-**Version:** 2.0 (Post-Delete-Fix, Post-EXIF-Removal, Image-Visibility-Enhanced)
+**Version:** 3.0 (Supabase Music Library + Player UX)

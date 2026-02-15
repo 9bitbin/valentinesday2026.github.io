@@ -222,13 +222,14 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
 }
 
 .cd {
-  width: clamp(28px, 8vw, 48px);
-  height: clamp(28px, 8vw, 48px);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #fff, #ccc);
-  box-shadow: 0 6px 18px rgba(255, 105, 180, 0.15);
-  transform: rotate(0deg);
+  width: clamp(32px, 8vw, 52px);
+  height: clamp(32px, 8vw, 52px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(28px, 7vw, 48px);
   flex-shrink: 0;
+  line-height: 1;
 }
 
 .song-info {
@@ -240,6 +241,20 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
   min-width: 200px;
 }
 
+.song-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.now-playing-label {
+  font-size: clamp(0.6rem, 1.4vw, 0.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .song-title {
   font-size: clamp(0.75rem, 2vw, 1rem);
   font-weight: 600;
@@ -249,12 +264,37 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
   word-break: break-word;
 }
 
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.35rem, 1.5vw, 0.6rem);
+  width: 100%;
+  justify-content: center;
+}
+
+.timecode {
+  font-size: clamp(0.65rem, 1.6vw, 0.8rem);
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 2.6em;
+  text-align: center;
+}
+
 .audio-controls {
   display: flex;
   align-items: center;
   gap: clamp(0.25rem, 1.5vw, 0.75rem);
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.audio-slider {
+  accent-color: var(--pink);
+  height: 6px;
+  cursor: pointer;
+}
+
+.progress-slider {
+  width: clamp(140px, 28vw, 240px);
 }
 /* Audio Control Buttons */
 .rocker-btn {
@@ -304,8 +344,6 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
 
 #volumeSlider {
   width: clamp(80px, 15vw, 150px);
-  height: 6px;
-  cursor: pointer;
 }
 
 /* Carousel - Fully responsive */
@@ -316,18 +354,19 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
   align-items: center;
   justify-content: center;
   gap: clamp(0.75rem, 2vw, 1rem);
-  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 3vw, 1.5rem);
+  padding: clamp(1rem, 3vw, 2rem) clamp(1rem, 3vw, 1.5rem);
   width: 100%;
   flex: 1;
-  min-height: clamp(300px, 60vh, 600px);
+  min-height: clamp(400px, 75vh, 900px);
 }
 
 .carousel {
-  width: min(900px, 95vw);
-  height: clamp(280px, 50vh, 540px);
+  width: min(1000px, 95vw);
+  height: 600px;
   position: relative;
   perspective: 1200px;
   flex-shrink: 0;
+  transition: height 0.4s ease-out;
 }
 
 .slide {
@@ -337,27 +376,35 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
   overflow: hidden;
   transform-origin: center center;
   will-change: transform, opacity;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.15);
+  padding: clamp(0.5rem, 1vw, 0.75rem);
+  padding-bottom: clamp(3rem, 5vw, 4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .slide img {
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   display: block;
   transform: scale(1);
   transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-  padding: clamp(0.5rem, 1.5vw, 1rem);
 }
 
 .slide figcaption {
   position: absolute;
   left: clamp(1rem, 3vw, 1.5rem);
-  bottom: clamp(1rem, 3vw, 1.5rem);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
-  padding: clamp(0.625rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+  bottom: clamp(0.75rem, 2vw, 1rem);
+  right: clamp(1rem, 3vw, 1.5rem);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
   border-radius: clamp(6px, 1.5vw, 8px);
+  z-index: 10;
 }
 
 .slide .caption {
@@ -730,6 +777,304 @@ input:focus {
   transform: scale(0.98);
 }
 
+/* ========== MUSIC LIBRARY STYLES - START ========== */
+
+/* Music Modal - Same style as other modals */
+#musicModal .modal-inner.glass-card {
+  background: linear-gradient(180deg, #1a1538 0%, #0f0d24 100%);
+  backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Music Upload Form */
+#musicForm {
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1rem);
+  max-width: 100%;
+}
+
+#musicForm label {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  color: #fff;
+  font-weight: 600;
+  font-size: clamp(0.875rem, 2vw, 1rem);
+}
+
+#musicForm input[type='file'],
+#musicForm input[type='text'] {
+  margin-top: 0.375rem;
+  padding: clamp(0.625rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+  border-radius: clamp(6px, 1.5vw, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+  color: #fff;
+  outline: none;
+  font-size: clamp(0.875rem, 2vw, 1rem);
+  transition: all 0.2s ease;
+}
+
+#musicForm input[type='file']:focus,
+#musicForm input[type='text']:focus {
+  border-color: var(--pink);
+  box-shadow: 0 0 12px rgba(255, 105, 180, 0.2);
+}
+
+#musicForm input[type='file']::file-selector-button {
+  background: var(--pink);
+  border: none;
+  padding: clamp(0.5rem, 1.5vw, 0.625rem) clamp(0.75rem, 2vw, 1rem);
+  border-radius: clamp(6px, 1.5vw, 8px);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  font-size: clamp(0.75rem, 2vw, 0.875rem);
+}
+
+#musicForm input[type='file']::file-selector-button:hover {
+  background: #ff1493;
+}
+
+#musicForm button {
+  background: var(--pink);
+  border: none;
+  padding: clamp(0.625rem, 2vw, 0.875rem) clamp(1rem, 3vw, 1.5rem);
+  border-radius: clamp(8px, 2vw, 10px);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.375rem;
+  font-size: clamp(0.875rem, 2vw, 1rem);
+  transition: all 0.2s ease;
+}
+
+#musicForm button:hover {
+  background: #ff1493;
+  transform: scale(1.05);
+}
+
+#musicForm button:active {
+  transform: scale(0.98);
+}
+
+#musicForm.drag-over {
+  border: 1px dashed rgba(255, 105, 180, 0.6);
+  background: rgba(255, 105, 180, 0.08);
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+
+/* Music Library Panel */
+.music-library-panel {
+  position: fixed;
+  top: clamp(100px, 20vh, 150px);
+  right: clamp(10px, 2vw, 20px);
+  width: clamp(280px, 35vw, 360px);
+  max-height: clamp(400px, 60vh, 600px);
+  background: linear-gradient(180deg, rgba(26, 21, 56, 0.95) 0%, rgba(15, 13, 36, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: clamp(10px, 2vw, 12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 900;
+  overflow: hidden;
+  transition: all 0.3s ease-out;
+}
+
+.music-library-panel.dragging {
+  transition: none;
+}
+
+.music-library-panel.minimized {
+  max-height: clamp(45px, 8vh, 55px);
+}
+
+.music-library-panel.hidden {
+  display: none;
+}
+
+/* Library Header */
+.library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(1rem, 2.5vw, 1.25rem);
+  background: rgba(255, 105, 180, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+}
+
+.library-header h4 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(0.875rem, 2vw, 1rem);
+  font-weight: 700;
+}
+
+.library-header-buttons {
+  display: flex;
+  gap: clamp(0.375rem, 1vw, 0.5rem);
+}
+
+.library-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: clamp(4px, 1vw, 6px);
+  color: #fff;
+  cursor: pointer;
+  padding: clamp(0.25rem, 0.8vw, 0.375rem) clamp(0.5rem, 1.2vw, 0.625rem);
+  font-size: clamp(0.75rem, 1.8vw, 0.875rem);
+  transition: all 0.2s ease;
+}
+
+.library-btn:hover {
+  background: rgba(255, 105, 180, 0.2);
+  border-color: var(--pink);
+}
+
+.library-btn.active {
+  background: rgba(255, 105, 180, 0.3);
+  border-color: var(--pink);
+}
+
+/* Library Content */
+.library-content {
+  overflow-y: auto;
+  max-height: clamp(340px, 52vh, 540px);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem);
+}
+
+.music-library-panel.minimized .library-content {
+  display: none;
+}
+
+/* Library List */
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+}
+
+.library-item {
+  display: flex;
+  gap: clamp(0.5rem, 1.5vw, 0.75rem);
+  padding: clamp(0.5rem, 1.5vw, 0.75rem);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: clamp(6px, 1.5vw, 8px);
+  transition: all 0.2s ease;
+  align-items: center;
+}
+
+.library-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.library-item.playing {
+  background: rgba(255, 105, 180, 0.1);
+  border-color: var(--pink);
+  box-shadow: 0 0 12px rgba(255, 105, 180, 0.15);
+}
+
+/* Library Item Info */
+.library-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.music-title {
+  color: #fff;
+  font-size: clamp(0.75rem, 1.8vw, 0.875rem);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0;
+}
+
+.library-item.playing .music-title::before {
+  content: '▶ ';
+  color: var(--pink);
+}
+
+.music-duration {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: clamp(0.65rem, 1.5vw, 0.75rem);
+  margin-top: 0.25rem;
+}
+
+/* Library Actions */
+.library-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.8vw, 0.375rem);
+  justify-content: center;
+}
+
+.library-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: clamp(4px, 1vw, 5px);
+  color: #fff;
+  cursor: pointer;
+  padding: clamp(0.25rem, 0.8vw, 0.375rem) clamp(0.375rem, 1vw, 0.5rem);
+  font-size: clamp(0.7rem, 1.6vw, 0.8rem);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.library-action-btn:hover {
+  background: rgba(255, 105, 180, 0.2);
+  border-color: var(--pink);
+  transform: scale(1.05);
+}
+
+.library-action-btn.play-btn {
+  background: rgba(255, 105, 180, 0.15);
+}
+
+.library-action-btn.play-btn:hover {
+  background: rgba(255, 105, 180, 0.3);
+}
+
+.library-action-btn.delete-btn:hover {
+  background: rgba(255, 50, 50, 0.3);
+  border-color: #ff6969;
+}
+
+/* Empty Library State */
+.library-empty {
+  text-align: center;
+  padding: clamp(1.5rem, 4vw, 2rem);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: clamp(0.75rem, 1.8vw, 0.875rem);
+  font-style: italic;
+}
+
+/* Upload Music Button in Header */
+#uploadMusicBtn {
+  background: rgba(255, 105, 180, 0.15);
+  border: 1px solid rgba(255, 105, 180, 0.3);
+  margin-left: clamp(0.5rem, 1.5vw, 0.75rem);
+  font-size: clamp(1rem, 2.2vw, 1.1rem);
+}
+
+#uploadMusicBtn:hover {
+  background: rgba(255, 105, 180, 0.3);
+  border-color: var(--pink);
+}
+
+/* ========== MUSIC LIBRARY STYLES - END ========== */
+
 /* Timeline Section */
 .timeline {
   width: 100%;
@@ -799,6 +1144,7 @@ input:focus {
   position: relative;
   width: 100%;
   padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 3vw, 1.5rem);
+  padding-bottom: clamp(4rem, 6vw, 6rem);
   min-height: 240px;
   background: rgba(11, 16, 32, 0.4);
   display: flex;
@@ -806,15 +1152,17 @@ input:focus {
   gap: clamp(1rem, 3vw, 1.5rem);
   justify-content: center;
   align-items: start;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
 }
 
 .polaroid {
   position: relative;
-  width: clamp(140px, 32vw, 200px);
-  height: clamp(160px, 35vw, 230px);
+  width: clamp(180px, 36vw, 260px);
+  height: clamp(240px, 45vw, 360px);
   background: #fff;
   border-radius: clamp(4px, 1.5vw, 6px);
-  padding: clamp(0.375rem, 1vw, 0.5rem) clamp(0.375rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.75rem);
+  padding: clamp(0.5rem, 1.2vw, 0.75rem);
+  padding-bottom: clamp(0.75rem, 1.8vw, 1rem);
   box-shadow: 0 10px 30px rgba(2, 2, 10, 0.6);
   cursor: pointer;
   transition: all 0.3s ease;
@@ -831,6 +1179,7 @@ input:focus {
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: clamp(0.25rem, 0.8vw, 0.4rem);
 }
 
 .thumbtack {
@@ -849,24 +1198,30 @@ input:focus {
   object-fit: contain;
   border-radius: clamp(3px, 1vw, 4px);
   display: block;
+  min-height: 0;
+  max-height: 100%;
 }
 
 .polaroid .label {
   width: 100%;
   background: #f5f5f5;
   color: #333;
-  padding: clamp(0.375rem, 1.5vw, 0.5rem) clamp(0.25rem, 1vw, 0.375rem);
+  padding: clamp(0.5rem, 1.8vw, 0.65rem) clamp(0.375rem, 1.2vw, 0.5rem);
   border-radius: 0 0 clamp(3px, 1vw, 4px) clamp(3px, 1vw, 4px);
-  font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+  font-size: clamp(0.7rem, 1.8vw, 0.875rem);
   font-weight: 600;
   text-align: center;
   word-break: break-word;
-  white-space: nowrap;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-height: clamp(2.5rem, 5vw, 3rem);
 }
-}
+
 
 /* ========================================
    RESPONSIVE BREAKPOINTS
@@ -1063,8 +1418,33 @@ input:focus {
     min-width: 160px;
   }
 
+  .progress-slider {
+    width: clamp(120px, 45vw, 200px);
+  }
+
   #volumeSlider {
     width: 80px;
+  }
+
+  /* MUSIC LIBRARY - Mobile Responsive */
+  .music-library-panel {
+    top: 80px;
+    right: 5px;
+    width: clamp(240px, 90vw, 300px);
+    max-height: clamp(300px, 50vh, 400px);
+  }
+
+  .library-content {
+    max-height: clamp(240px, 42vh, 340px);
+  }
+
+  .music-title {
+    font-size: 0.7rem;
+  }
+
+  #uploadMusicBtn {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.5rem;
   }
 }
 

@@ -43,15 +43,24 @@
                     <h1>Our Love Story ★ Since <span id="sinceDate">—</span></h1>
                 </div>
                 <div class="now-playing" id="nowPlaying" role="region" aria-label="Music player">
-                    <div class="cd" aria-hidden="true"></div>
+                    <div class="cd" aria-hidden="true">💿</div>
                     <div class="song-info">
-                        <div id="songTitle" class="song-title">—</div>
+                        <div class="song-meta">
+                            <div class="now-playing-label">Now Playing</div>
+                            <div id="songTitle" class="song-title">—</div>
+                        </div>
+                        <div class="progress-row" role="group" aria-label="Playback progress">
+                            <span id="currentTime" class="timecode">0:00</span>
+                            <input id="progressBar" class="audio-slider progress-slider" type="range" min="0" max="100" value="0" step="0.1" aria-label="song progress">
+                            <span id="durationTime" class="timecode">0:00</span>
+                        </div>
                         <div class="audio-controls">
                             <button id="prevBtn" class="rocker-btn" type="button" aria-label="previous track">⏮</button>
                             <button id="playPause" class="play-btn" type="button" aria-label="play or pause music">Play</button>
                             <button id="stopBtn" class="rocker-btn" type="button" aria-label="stop">⏹</button>
                             <button id="nextBtn" class="rocker-btn" type="button" aria-label="next track">⏭</button>
-                            <input id="volumeSlider" type="range" min="0" max="100" value="80" aria-label="volume control">
+                            <input id="volumeSlider" class="audio-slider" type="range" min="0" max="100" value="80" aria-label="volume control">
+                            <button id="uploadMusicBtn" class="rocker-btn" type="button" aria-label="upload music" title="Upload Music">📤</button>
                         </div>
                     </div>
                 </div>
@@ -135,5 +144,38 @@
             </div>
         </div>
 
+        <!-- YOUTUBE PLAYER UI - START -->
+        <div id="musicModal" class="modal hidden" role="dialog" aria-hidden="true">
+            <div class="modal-inner glass-card">
+                <button class="close" id="musicModalClose">✕</button>
+                <h3>Upload Music</h3>
+                <form id="musicForm">
+                    <label for="musicFile">Select MP3:
+                        <input id="musicFile" type="file" accept="audio/mpeg" required>
+                    </label>
+                    <label for="musicTitle">Song Title (optional):
+                        <input id="musicTitle" type="text" placeholder="e.g. Our Favorite Song">
+                    </label>
+                    <button type="submit" class="accent">Upload</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MUSIC LIBRARY PANEL - START -->
+        <div id="musicLibraryPanel" class="music-library-panel">
+            <div class="library-header">
+                <h4>Music Library</h4>
+                <div class="library-header-buttons">
+                    <button id="loopToggleBtn" class="library-btn" type="button" title="Toggle Loop">🔁</button>
+                    <button id="toggleLibraryBtn" class="library-btn" type="button" title="Toggle Library">▼</button>
+                </div>
+            </div>
+            <div class="library-content">
+                <div id="musicLibraryList" class="library-list"></div>
+            </div>
+        </div>
+        <!-- MUSIC LIBRARY PANEL - END -->
+
+        <script src="youtube-player.js"></script>
     </body>
 </html>

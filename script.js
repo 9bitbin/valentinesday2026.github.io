@@ -13,6 +13,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   const CAROUSEL_TABLE = 'carousel_photos';
   const CAROUSEL_BUCKET = 'carousel';
   const NOTES_TABLE = 'notes';
+  const MUSIC_TABLE = 'music_library';
+  const MUSIC_BUCKET = 'music';
 
   // ---- Notes Functions ----
   async function fetchNotesFromSupabase() {
@@ -56,6 +58,63 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     return data || [];
   }
 
+  // ---- Music Library Functions ----
+  async function fetchMusicFromSupabase() {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(MUSIC_TABLE).select('*').order('created_at', { ascending: true });
+    if (error) { console.warn('Music fetch error', error); return []; }
+    return data || [];
+  }
+
+  async function uploadMusicToSupabase(file, title) {
+    if (!supabase) { alert('Supabase not configured'); return null; }
+    
+    const filename = `${Date.now()}-${file.name}`;
+    const path = `music/${filename}`;
+    
+    try {
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage.from(MUSIC_BUCKET).upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage.from(MUSIC_BUCKET).getPublicUrl(path);
+      const music_url = urlData?.publicUrl;
+      
+      // Insert into database
+      const { data, error: dbError } = await supabase.from(MUSIC_TABLE).insert({
+        title: title || file.name.replace('.mp3', ''),
+        filename: filename,
+        music_url: music_url,
+        file_size: file.size,
+        created_at: new Date().toISOString()
+      }).select();
+      
+      if (dbError) throw dbError;
+      return data ? data[0] : null;
+    } catch (error) {
+      console.error('Music upload error:', error);
+      throw error;
+    }
+  }
+
+  async function deleteMusicFromSupabase(musicId, filename) {
+    if (!supabase) { alert('Supabase not configured'); return; }
+    try {
+      // Delete from storage
+      const storagePath = `music/${filename}`;
+      const { error: storageError } = await supabase.storage.from(MUSIC_BUCKET).remove([storagePath]);
+      if (storageError) console.warn('Storage delete warning', storageError);
+      
+      // Delete from database
+      const { error: dbError } = await supabase.from(MUSIC_TABLE).delete().eq('id', musicId);
+      if (dbError) { console.error('Music delete error', dbError); throw dbError; }
+    } catch (error) {
+      console.error('Delete music error:', error);
+      throw error;
+    }
+  }
+
   function appendCloudSlidesToCarousel(photos) {
     const carousel = document.getElementById('carousel');
     if (!carousel) return;
@@ -80,8 +139,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
       const url = (photo.image_url || '').replace(/'/g, "\\'");
       const cap = (photo.caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const deleteBtn = `<button type="button" class="slide-delete-btn" aria-label="Delete this photo" style="position:absolute;top:10px;right:10px;background:rgba(255,0,0,0.7);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:bold;z-index:10;">✕</button>`;
-      slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;position:relative;">${deleteBtn}</div><figcaption><div class="caption">${cap}</div></figcaption>`;
+      slide.innerHTML = `<img src="${url}" alt="${cap}" data-src="${url}" />${deleteBtn}<figcaption><div class="caption">${cap}</div></figcaption>`;
       carousel.appendChild(slide);
+      
+      // Add load event to adjust carousel height
+      const img = slide.querySelector('img');
+      if (img) {
+        img.addEventListener('load', () => adjustCarouselHeight(img));
+      }
     });
     // Attach delete handlers to all delete buttons
     attachPhotoDeleteHandlers();
@@ -314,6 +379,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   }
   function unlockEntry(){
     lockScreen.style.display='none'; main.classList.remove('hidden');
+    // Show music library panel after login
+    if (musicLibraryPanel) musicLibraryPanel.classList.remove('hidden');
     // set since date from first slide metadata
     const first = document.querySelector('.slide'); if(first) sinceDateEl.textContent = first.dataset.date || '—';
     // ensure carousel auto-advances when user unlocks
@@ -341,6 +408,44 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     loadSlideImage(idx); loadSlideImage(idx+1); loadSlideImage(idx-1);
     createDots(); startAuto();
     attachCarouselDeleteHandlers();
+    // Adjust carousel height for current slide
+    adjustCarouselHeightForCurrentSlide();
+  }
+
+  // Auto-adjust carousel height based on current photo's aspect ratio
+  function adjustCarouselHeight(img) {
+    if (!img || !img.complete) return;
+    const carousel = document.getElementById('carousel');
+    if (!carousel) return;
+    
+    const aspectRatio = img.naturalWidth / img.naturalHeight;
+    const maxWidth = Math.min(1000, window.innerWidth * 0.95);
+    const maxHeight = window.innerHeight * 0.75;
+    
+    let newHeight;
+    if (aspectRatio > 1.5) {
+      // Wide landscape photo
+      newHeight = Math.min(maxWidth / aspectRatio, maxHeight);
+    } else if (aspectRatio < 0.7) {
+      // Tall portrait photo
+      newHeight = Math.min(maxHeight, maxWidth / aspectRatio);
+    } else {
+      // Square-ish photo
+      newHeight = Math.min(maxWidth * 0.8, maxHeight);
+    }
+    
+    // Constrain between 400px and 900px
+    newHeight = Math.max(400, Math.min(900, newHeight));
+    carousel.style.height = `${newHeight}px`;
+  }
+
+  function adjustCarouselHeightForCurrentSlide() {
+    if (!slides || !slides[idx]) return;
+    const currentSlide = slides[idx];
+    const img = currentSlide.querySelector('img');
+    if (img && img.complete) {
+      adjustCarouselHeight(img);
+    }
   }
 
   function attachCarouselDeleteHandlers() {
@@ -393,7 +498,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   function goto(i){ idx = (i+slides.length)%slides.length; slides.forEach((s,j)=>applyTransform(s,j-idx));
     // lazy load neighbor images when navigating
     loadSlideImage(idx); loadSlideImage(idx+1); loadSlideImage(idx-1);
-    updateDots(); }
+    updateDots(); adjustCarouselHeightForCurrentSlide(); }
   function next(){ goto(idx+1); }
   function prev(){ goto(idx-1); }
   function startAuto(){ stopAuto(); autoTimer = setInterval(next,3000); }
@@ -471,10 +576,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   carousel.addEventListener('mouseenter', stopAuto); carousel.addEventListener('mouseleave', startAuto);
 
   // ---- Audio controls (playlist, prev/next/stop, volume, song name) ----
-  const PLAYLIST = [
-    { name: 'Te Amo — Franco De Vita', src: 'Franco_De_Vita-Te_Amo.mp3' },
-    { name: 'When You Say You Love Me — Josh Groban', src: 'when_you_say_you_love_me-Josh_Groban.mp3' }
-  ];
+  const PLAYLIST = [];
   const music = document.createElement('audio');
   music.id = 'bgMusic';
   document.body.appendChild(music);
@@ -483,34 +585,64 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   const playBtn = document.getElementById('playPause');
   const vol = document.getElementById('volumeSlider');
   const titleEl = document.getElementById('songTitle');
+  const progressBar = document.getElementById('progressBar');
+  const currentTimeEl = document.getElementById('currentTime');
+  const durationTimeEl = document.getElementById('durationTime');
   const prevBtn = document.getElementById('prevBtn');
   const nextBtn = document.getElementById('nextBtn');
   const stopBtn = document.getElementById('stopBtn');
 
+  function getActiveList() {
+    return musicLibrary.length ? musicLibrary : PLAYLIST;
+  }
+
+  function formatTime(totalSeconds) {
+    if (!Number.isFinite(totalSeconds)) return '0:00';
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function updateProgressUI() {
+    if (!progressBar) return;
+    const duration = Number.isFinite(music.duration) ? music.duration : 0;
+    const current = Number.isFinite(music.currentTime) ? music.currentTime : 0;
+    const percent = duration ? (current / duration) * 100 : 0;
+    progressBar.value = percent.toFixed(2);
+    if (currentTimeEl) currentTimeEl.textContent = formatTime(current);
+    if (durationTimeEl) durationTimeEl.textContent = formatTime(duration);
+  }
+
   function goToTrack(index) {
-    if (!PLAYLIST.length) return;
-    currentTrackIndex = (index + PLAYLIST.length) % PLAYLIST.length;
-    const track = PLAYLIST[currentTrackIndex];
+    const list = getActiveList();
+    if (!list.length) return;
+    currentTrackIndex = (index + list.length) % list.length;
+    const track = list[currentTrackIndex];
     music.src = track.src;
     music.load();
     if (titleEl) titleEl.textContent = track.name;
     music.play().then(() => updatePlay()).catch(() => updatePlay());
+    updateProgressUI();
+    renderMusicLibrary();
   }
 
   function nextTrack() {
-    if (PLAYLIST.length <= 1) { music.currentTime = 0; music.play().then(() => updatePlay()).catch(() => {}); return; }
+    const list = getActiveList();
+    if (list.length <= 1) { music.currentTime = 0; music.play().then(() => updatePlay()).catch(() => {}); return; }
     goToTrack(currentTrackIndex + 1);
   }
 
   function prevTrack() {
     if (music.currentTime > 2) { music.currentTime = 0; music.play().then(() => updatePlay()).catch(() => {}); return; }
-    if (PLAYLIST.length <= 1) { music.currentTime = 0; updatePlay(); return; }
+    const list = getActiveList();
+    if (list.length <= 1) { music.currentTime = 0; updatePlay(); return; }
     goToTrack(currentTrackIndex - 1);
   }
 
   function stopTrack() {
     music.pause();
     music.currentTime = 0;
+    updateProgressUI();
     updatePlay();
   }
 
@@ -525,15 +657,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   nextBtn.addEventListener('click', nextTrack);
   stopBtn.addEventListener('click', stopTrack);
   vol.addEventListener('input', () => { music.volume = vol.value / 100; });
+  if (progressBar) {
+    progressBar.addEventListener('input', () => {
+      if (!Number.isFinite(music.duration) || music.duration === 0) return;
+      const nextTime = (Number(progressBar.value) / 100) * music.duration;
+      music.currentTime = nextTime;
+    });
+  }
 
   music.volume = vol ? vol.value / 100 : 0.8;
   music.loop = false;
-  music.addEventListener('ended', () => { if (PLAYLIST.length > 1) goToTrack(currentTrackIndex + 1); else music.currentTime = 0; music.play().catch(() => {}); });
+  music.addEventListener('ended', () => {
+    const list = getActiveList();
+    if (loopEnabled && list.length > 0) {
+      goToTrack(currentTrackIndex + 1);
+      return;
+    }
+    music.pause();
+    music.currentTime = 0;
+    updateProgressUI();
+    updatePlay();
+  });
   music.addEventListener('play', updatePlay);
   music.addEventListener('pause', updatePlay);
+  music.addEventListener('timeupdate', updateProgressUI);
+  music.addEventListener('loadedmetadata', updateProgressUI);
+  music.addEventListener('durationchange', updateProgressUI);
 
   function updateSongTitle() {
-    if (titleEl && PLAYLIST[currentTrackIndex]) titleEl.textContent = PLAYLIST[currentTrackIndex].name;
+    const list = getActiveList();
+    if (titleEl && list[currentTrackIndex]) titleEl.textContent = list[currentTrackIndex].name;
   }
 
   function updatePlay() {
@@ -550,6 +703,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
   // Set initial song name (no autoplay until unlock)
   if (titleEl && PLAYLIST[0]) titleEl.textContent = PLAYLIST[0].name;
+  updateProgressUI();
 
   // Keyboard shortcuts: Space play/pause, arrows carousel, M mute
   document.addEventListener('keydown', (ev) => {
@@ -573,10 +727,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     // Debounce layout recalculation to avoid performance issues
     if(layoutRecalcTimer) clearTimeout(layoutRecalcTimer);
     layoutRecalcTimer = setTimeout(() => {
-      // Recreate polaroids with new responsive sizes
-      createPolaroids();
       // Ensure carousel transforms are still correct
       setupCarousel();
+      // Note: Polaroids don't need recreation - CSS handles responsive sizing
     }, 250); // Wait for layout to stabilize before recalculation
   }
 
@@ -688,8 +841,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
       const p = document.createElement('div'); 
       p.className = 'polaroid';
       p.dataset.photoId = photo.id;
-      // Random slight rotation for natural scattered look
-      const rotation = (Math.random() - 0.5) * 8; // -4 to 4 degrees
+      // Small random rotation for natural scattered look
+      const rotation = (Math.random() - 0.5) * 4; // -2 to 2 degrees (reduced from 8)
       p.style.transform = `rotate(${rotation}deg)`;
       
       const imageUrl = photo.image_url || '';
@@ -874,6 +1027,248 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   }
 
 
+  // ---- Music Library Feature ----
+  const musicModal = document.getElementById('musicModal');
+  const musicModalClose = document.getElementById('musicModalClose');
+  const uploadMusicBtn = document.getElementById('uploadMusicBtn');
+  const musicForm = document.getElementById('musicForm');
+  const musicFileInput = document.getElementById('musicFile');
+  const musicTitleInput = document.getElementById('musicTitle');
+  const musicLibraryList = document.getElementById('musicLibraryList');
+  const musicLibraryPanel = document.getElementById('musicLibraryPanel');
+  const toggleLibraryBtn = document.getElementById('toggleLibraryBtn');
+  const loopToggleBtn = document.getElementById('loopToggleBtn');
+
+  let musicLibrary = [];
+  let loopEnabled = true;
+  let droppedMusicFile = null;
+
+  // Hide music library panel initially (show after login)
+  if (musicLibraryPanel) {
+    musicLibraryPanel.classList.add('hidden');
+  }
+
+  function openMusicModal() { 
+    if(!musicModal) return; 
+    musicModal.classList.remove('hidden'); 
+    musicModal.setAttribute('aria-hidden','false'); 
+  }
+  function closeMusicModal() { 
+    if(!musicModal) return; 
+    musicModal.classList.add('hidden'); 
+    musicModal.setAttribute('aria-hidden','true'); 
+    musicForm.reset(); 
+  }
+
+  if(uploadMusicBtn) uploadMusicBtn.addEventListener('click', openMusicModal);
+  if(musicModalClose) musicModalClose.addEventListener('click', closeMusicModal);
+  if(musicModal) musicModal.addEventListener('click', (e)=>{ if(e.target===musicModal) closeMusicModal(); });
+
+  // Toggle library panel visibility
+  if(toggleLibraryBtn && musicLibraryPanel) {
+    toggleLibraryBtn.addEventListener('click', () => {
+      musicLibraryPanel.classList.toggle('minimized');
+    });
+  }
+
+  function initLibraryDrag() {
+    if (!musicLibraryPanel) return;
+    const header = musicLibraryPanel.querySelector('.library-header');
+    if (!header) return;
+
+    const savedPos = localStorage.getItem('musicLibraryPos');
+    if (savedPos) {
+      try {
+        const parsed = JSON.parse(savedPos);
+        if (Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) {
+          musicLibraryPanel.style.left = `${parsed.left}px`;
+          musicLibraryPanel.style.top = `${parsed.top}px`;
+          musicLibraryPanel.style.right = 'auto';
+        }
+      } catch (err) {}
+    }
+
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let panelWidth = 0;
+    let panelHeight = 0;
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      const nextLeft = Math.min(Math.max(0, startLeft + (e.clientX - startX)), window.innerWidth - panelWidth);
+      const nextTop = Math.min(Math.max(0, startTop + (e.clientY - startY)), window.innerHeight - panelHeight);
+      musicLibraryPanel.style.left = `${nextLeft}px`;
+      musicLibraryPanel.style.top = `${nextTop}px`;
+    };
+
+    const onPointerUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      musicLibraryPanel.classList.remove('dragging');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      const rect = musicLibraryPanel.getBoundingClientRect();
+      localStorage.setItem('musicLibraryPos', JSON.stringify({ left: rect.left, top: rect.top }));
+    };
+
+    header.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.library-btn')) return;
+      const rect = musicLibraryPanel.getBoundingClientRect();
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = rect.left;
+      startTop = rect.top;
+      panelWidth = rect.width;
+      panelHeight = rect.height;
+      musicLibraryPanel.style.right = 'auto';
+      musicLibraryPanel.style.left = `${rect.left}px`;
+      musicLibraryPanel.style.top = `${rect.top}px`;
+      musicLibraryPanel.classList.add('dragging');
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+  }
+
+  // Toggle loop
+  if(loopToggleBtn) {
+    loopToggleBtn.addEventListener('click', () => {
+      loopEnabled = !loopEnabled;
+      loopToggleBtn.classList.toggle('active', loopEnabled);
+      loopToggleBtn.title = loopEnabled ? 'Loop: ON' : 'Loop: OFF';
+    });
+    loopToggleBtn.classList.toggle('active', loopEnabled);
+  }
+
+  initLibraryDrag();
+
+  // Upload music form
+  if(musicForm) {
+    musicForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = droppedMusicFile || musicFileInput.files[0];
+      const title = (musicTitleInput.value || file.name).trim();
+
+      if(!file) { alert('Please select an MP3 file'); return; }
+      if(!file.type.includes('audio')) { alert('Please select an audio file'); return; }
+      if (!supabaseReady || !supabase) {
+        alert('Supabase is not configured. See SUPABASE_SETUP.md');
+        return;
+      }
+
+      const submitBtn = musicForm.querySelector('button[type="submit"]');
+      const origText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Uploading…';
+
+      try {
+        const music = await uploadMusicToSupabase(file, title);
+        if (music) {
+          closeMusicModal();
+          alert('Music uploaded! 🎵');
+          await loadMusicLibrary();
+        }
+      } catch (err) {
+        console.error('Music upload error', err);
+        alert('Upload failed: ' + err.message);
+      } finally {
+        droppedMusicFile = null;
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+    });
+  }
+
+  if (musicFileInput) {
+    musicFileInput.addEventListener('change', () => {
+      droppedMusicFile = null;
+    });
+  }
+
+  if (musicForm) {
+    const setDragState = (isActive) => {
+      musicForm.classList.toggle('drag-over', isActive);
+    };
+
+    musicForm.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      setDragState(true);
+    });
+
+    musicForm.addEventListener('dragleave', () => setDragState(false));
+
+    musicForm.addEventListener('drop', (e) => {
+      e.preventDefault();
+      setDragState(false);
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+      if (!file.type.includes('audio')) { alert('Please drop an audio file'); return; }
+      droppedMusicFile = file;
+      try { musicFileInput.files = e.dataTransfer.files; } catch (err) {}
+      if (!musicTitleInput.value) {
+        musicTitleInput.value = file.name.replace(/\.mp3$/i, '').replace(/_/g, ' ').trim();
+      }
+    });
+  }
+
+  async function loadMusicLibrary() {
+    const raw = await fetchMusicFromSupabase();
+    musicLibrary = raw.map(song => ({
+      ...song,
+      name: song.title,
+      src: song.music_url
+    }));
+    if (musicLibrary.length && currentTrackIndex >= musicLibrary.length) {
+      currentTrackIndex = 0;
+    }
+    updateSongTitle();
+    renderMusicLibrary();
+  }
+
+  function renderMusicLibrary() {
+    if (!musicLibraryList) return;
+
+    if (musicLibrary.length === 0) {
+      musicLibraryList.innerHTML = '<div class="library-empty">No songs uploaded yet. Click 📤 to add music!</div>';
+      return;
+    }
+
+    const isLibraryActive = musicLibrary.length > 0;
+    musicLibraryList.innerHTML = musicLibrary.map((song, index) => `
+      <div class="library-item ${isLibraryActive && index === currentTrackIndex ? 'playing' : ''}" data-index="${index}">
+        <div class="library-info">
+          <div class="music-title">${song.name}</div>
+          <div class="music-duration">${new Date(song.created_at).toLocaleDateString()}</div>
+        </div>
+        <div class="library-actions">
+          <button class="library-action-btn play-btn" onclick="playMusic(${index})" title="Play">▶</button>
+          <button class="library-action-btn delete-btn" onclick="deleteMusicAndRefresh(${index}, '${song.id}')" title="Delete">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.playMusic = async function(index) {
+    if (index >= musicLibrary.length || index < 0) return;
+    currentTrackIndex = index;
+    goToTrack(index);
+  };
+
+  window.deleteMusicAndRefresh = async function(index, musicId) {
+    if (confirm('Delete this song?')) {
+      try {
+        const song = musicLibrary[index];
+        await deleteMusicFromSupabase(musicId, song.filename);
+        await loadMusicLibrary();
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    }
+  };
+
   // init everything on DOMContentLoaded
   async function init(){
     resize(); 
@@ -886,6 +1281,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     setInterval(updateCountdown, 60000);
     // Carousel: load Supabase uploads then setup (static HTML slides + cloud slides)
     await loadCarouselFromCloudAndSetup();
+    // Load music library
+    await loadMusicLibrary();
     
     // Ensure layout responds to viewport changes
     // Add listener for when content actually resizes (after animations, etc.)
