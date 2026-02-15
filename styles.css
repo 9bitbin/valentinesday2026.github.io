@@ -26,8 +26,11 @@ form#unlockForm input:focus{box-shadow:0 0 18px rgba(255,105,180,0.3);border-col
 .topbar h1{font-family:'Segoe UI', Tahoma, sans-serif;margin:0 0 8px;font-size:1.2rem}
 .now-playing{position:absolute;right:18px;top:18px;display:flex;gap:10px;align-items:center}
 .cd{width:36px;height:36px;border-radius:50%;background:linear-gradient(180deg,#fff,#ccc);box-shadow:0 6px 18px rgba(255,105,180,0.15);transform:rotate(0deg)}
-.audio-controls{display:flex;align-items:center;gap:8px}
-.play-btn{background:var(--pink);border:none;padding:6px 10px;border-radius:10px;color:#111;font-weight:700;cursor:pointer}
+.audio-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.song-title{font-size:14px;font-weight:600;color:#ffe7f2;margin-bottom:6px;min-height:1.2em}
+.rocker-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);padding:6px 10px;border-radius:8px;color:#fff;font-size:16px;cursor:pointer;line-height:1}
+.rocker-btn:hover{background:rgba(255,105,180,0.3);border-color:var(--pink)}
+.play-btn{background:var(--pink);border:none;padding:6px 12px;border-radius:10px;color:#111;font-weight:700;cursor:pointer}
 
 .carousel-wrap{position:relative;z-index:3;display:flex;align-items:center;justify-content:center;padding:32px 12px}
 .carousel{width:min(900px,94%);height:min(60vh,540px);position:relative;perspective:1200px}

@@ -190,8 +190,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     const first = document.querySelector('.slide'); if(first) sinceDateEl.textContent = first.dataset.date || '—';
     // ensure carousel auto-advances when user unlocks
     startAuto();
-    // auto-start music on unlock (user gesture from Unlock/Demo click allows autoplay)
-    music.play().then(()=> updatePlay()).catch(()=> {});
+    // auto-start first track on unlock (user gesture allows autoplay)
+    goToTrack(0);
   }
 
   // ---- Carousel core ----
@@ -246,36 +246,95 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   // pause on hover
   carousel.addEventListener('mouseenter', stopAuto); carousel.addEventListener('mouseleave', startAuto);
 
-  // ---- Audio controls & visitor counter ----
-  const audio = document.getElementById('bgMusic');
-  // create audio element dynamically to avoid autoplay before interaction
-  const music = document.createElement('audio'); music.id='bgMusic'; music.loop=true; const src = document.createElement('source'); src.src='song.mp3'; src.type='audio/mpeg'; music.appendChild(src); document.body.appendChild(music);
+  // ---- Audio controls (playlist, prev/next/stop, volume, song name) ----
+  const PLAYLIST = [
+    { name: 'Te Amo — Franco De Vita', src: 'Franco_De_Vita-Te_Amo.mp3' },
+    { name: 'When You Say You Love Me — Josh Groban', src: 'when_you_say_you_love_me-Josh_Groban.mp3' }
+  ];
+  const music = document.createElement('audio');
+  music.id = 'bgMusic';
+  document.body.appendChild(music);
+  let currentTrackIndex = 0;
 
-  const playBtn = document.getElementById('playPause'); const vol = document.getElementById('volumeSlider'); const title = document.getElementById('songTitle');
-  playBtn.addEventListener('click', ()=>{ if(music.paused) music.play(); else music.pause(); updatePlay(); });
-  vol.addEventListener('input', ()=>{ music.volume = vol.value/100; });
+  const playBtn = document.getElementById('playPause');
+  const vol = document.getElementById('volumeSlider');
+  const titleEl = document.getElementById('songTitle');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const stopBtn = document.getElementById('stopBtn');
 
-  // GSAP tween for rotating CD — start paused and play/resume when audio plays
-  let cdTween = null;
-  try{
-    cdTween = gsap.to('.cd',{rotation:360,duration:6,repeat:-1,ease:'none',paused:true});
-  }catch(e){ cdTween = null; }
-
-  function updatePlay(){
-    playBtn.textContent = music.paused? 'Play' : 'Pause';
-    if(cdTween){ if(music.paused) cdTween.pause(); else cdTween.play(); }
-    else { document.querySelector('.cd').style.transform = music.paused? 'rotate(0deg)' : 'rotate(360deg)'; }
+  function goToTrack(index) {
+    if (!PLAYLIST.length) return;
+    currentTrackIndex = (index + PLAYLIST.length) % PLAYLIST.length;
+    const track = PLAYLIST[currentTrackIndex];
+    music.src = track.src;
+    music.load();
+    if (titleEl) titleEl.textContent = track.name;
+    music.play().then(() => updatePlay()).catch(() => updatePlay());
   }
-  music.addEventListener('play', updatePlay); music.addEventListener('pause', updatePlay);
 
-  // Keyboard shortcuts: Space toggles play/pause (when not typing), arrows navigate carousel, M toggles mute
-  document.addEventListener('keydown', (ev)=>{
+  function nextTrack() {
+    if (PLAYLIST.length <= 1) { music.currentTime = 0; music.play().then(() => updatePlay()).catch(() => {}); return; }
+    goToTrack(currentTrackIndex + 1);
+  }
+
+  function prevTrack() {
+    if (music.currentTime > 2) { music.currentTime = 0; music.play().then(() => updatePlay()).catch(() => {}); return; }
+    if (PLAYLIST.length <= 1) { music.currentTime = 0; updatePlay(); return; }
+    goToTrack(currentTrackIndex - 1);
+  }
+
+  function stopTrack() {
+    music.pause();
+    music.currentTime = 0;
+    updatePlay();
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (music.paused) {
+      if (!music.src) goToTrack(0);
+      else music.play().then(() => updatePlay()).catch(() => {});
+    } else music.pause();
+    updatePlay();
+  });
+  prevBtn.addEventListener('click', prevTrack);
+  nextBtn.addEventListener('click', nextTrack);
+  stopBtn.addEventListener('click', stopTrack);
+  vol.addEventListener('input', () => { music.volume = vol.value / 100; });
+
+  music.volume = vol ? vol.value / 100 : 0.8;
+  music.loop = false;
+  music.addEventListener('ended', () => { if (PLAYLIST.length > 1) goToTrack(currentTrackIndex + 1); else music.currentTime = 0; music.play().catch(() => {}); });
+  music.addEventListener('play', updatePlay);
+  music.addEventListener('pause', updatePlay);
+
+  function updateSongTitle() {
+    if (titleEl && PLAYLIST[currentTrackIndex]) titleEl.textContent = PLAYLIST[currentTrackIndex].name;
+  }
+
+  function updatePlay() {
+    playBtn.textContent = music.paused ? 'Play' : 'Pause';
+    updateSongTitle();
+    try {
+      if (cdTween) { if (music.paused) cdTween.pause(); else cdTween.play(); }
+      else { const cd = document.querySelector('.cd'); if (cd) cd.style.transform = music.paused ? 'rotate(0deg)' : 'rotate(360deg)'; }
+    } catch (e) {}
+  }
+
+  let cdTween = null;
+  try { cdTween = gsap.to('.cd', { rotation: 360, duration: 6, repeat: -1, ease: 'none', paused: true }); } catch (e) { cdTween = null; }
+
+  // Set initial song name (no autoplay until unlock)
+  if (titleEl && PLAYLIST[0]) titleEl.textContent = PLAYLIST[0].name;
+
+  // Keyboard shortcuts: Space play/pause, arrows carousel, M mute
+  document.addEventListener('keydown', (ev) => {
     const tag = (document.activeElement && document.activeElement.tagName) || '';
-    if(tag === 'INPUT' || tag === 'TEXTAREA') return; // don't hijack typing
-    if(ev.code === 'Space' || ev.key === ' '){ ev.preventDefault(); if(music.paused) music.play(); else music.pause(); updatePlay(); }
-    if(ev.code === 'ArrowRight') { ev.preventDefault(); next(); resetAuto(); }
-    if(ev.code === 'ArrowLeft') { ev.preventDefault(); prev(); resetAuto(); }
-    if(ev.key && ev.key.toLowerCase() === 'm'){ music.muted = !music.muted; vol.value = music.muted ? 0 : Math.round(music.volume*100); }
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (ev.code === 'Space' || ev.key === ' ') { ev.preventDefault(); if (music.paused) { if (!music.src) goToTrack(0); else music.play(); } else music.pause(); updatePlay(); }
+    if (ev.code === 'ArrowRight') { ev.preventDefault(); next(); resetAuto(); }
+    if (ev.code === 'ArrowLeft') { ev.preventDefault(); prev(); resetAuto(); }
+    if (ev.key && ev.key.toLowerCase() === 'm') { music.muted = !music.muted; vol.value = music.muted ? 0 : Math.round(music.volume * 100); }
   });
 
   // visitor counter (simple localStorage increment)

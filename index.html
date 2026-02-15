@@ -43,9 +43,12 @@
                 <div class="now-playing" id="nowPlaying">
                     <div class="cd" aria-hidden="true"></div>
                     <div class="song-info">
-                        <div id="songTitle">Our Song</div>
+                        <div id="songTitle" class="song-title">—</div>
                         <div class="audio-controls">
-                            <button id="playPause" class="play-btn">Play</button>
+                            <button id="prevBtn" class="rocker-btn" type="button" aria-label="previous track">⏮</button>
+                            <button id="playPause" class="play-btn" type="button">Play</button>
+                            <button id="stopBtn" class="rocker-btn" type="button" aria-label="stop">⏹</button>
+                            <button id="nextBtn" class="rocker-btn" type="button" aria-label="next track">⏭</button>
                             <input id="volumeSlider" type="range" min="0" max="100" value="80" aria-label="volume">
                         </div>
                     </div>
