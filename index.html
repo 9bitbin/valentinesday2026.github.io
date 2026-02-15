@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Valentine's Access Portal 💗</title>
+        <link rel="stylesheet" href="styles.css">
+        <script src="https://unpkg.com/gsap@3/dist/gsap.min.js" defer></script>
+        <script src="script.js" defer></script>
+    </head>
+    <body>
+
+        <canvas id="starfield"></canvas>
+        <div id="hearts" aria-hidden="true"></div>
+
+        <div id="lockScreen" class="glass-card">
+            <h2>Valentine’s Access Portal 💗</h2>
+            <p class="muted">Answer correctly to unlock our love archive.</p>
+
+            <form id="unlockForm">
+                <label>When did we start dating?
+                    <input id="q-date" type="date" required>
+                </label>
+
+                <label>What’s Himal’s favorite color?
+                    <input id="q-color" type="text" placeholder="e.g. lavender" required>
+                </label>
+
+                <label>Where was our first date?
+                    <input id="q-place" type="text" placeholder="City / Place" required>
+                </label>
+
+                <div class="controls">
+                    <button id="unlockBtn" type="submit" class="accent">Unlock</button>
+                    <button id="demoBtn" type="button" class="ghost">Demo (skip)</button>
+                </div>
+            </form>
+        </div>
+
+        <main id="main" class="hidden">
+            <header class="topbar">
+                <h1>Our Love Story ★ Since <span id="sinceDate">—</span></h1>
+                <div class="now-playing" id="nowPlaying">
+                    <div class="cd" aria-hidden="true"></div>
+                    <div class="song-info">
+                        <div id="songTitle">Our Song</div>
+                        <div class="audio-controls">
+                            <button id="playPause" class="play-btn">Play</button>
+                            <input id="volumeSlider" type="range" min="0" max="100" value="80" aria-label="volume">
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section class="carousel-wrap">
+                <button class="nav left" aria-label="previous">◀</button>
+                <div class="carousel" id="carousel">
+                    <div class="slide" data-date="2022-06-22">
+                        <img data-src="photo1.jpg" alt="memory 1" loading="lazy">
+                        <figcaption>
+                            <div class="caption">2022-06-22 — Our first kiss</div>
+                        </figcaption>
+                    </div>
+                    <div class="slide" data-date="2007-06-21">
+                        <img data-src="photo2.jpg" alt="memory 2" loading="lazy">
+                        <figcaption>
+                            <div class="caption">2007-06-21 — Roadtrip</div>
+                        </figcaption>
+                    </div>
+                    <div class="slide" data-date="2008-09-05">
+                        <img data-src="photo3.jpg" alt="memory 3" loading="lazy">
+                        <figcaption>
+                            <div class="caption">2008-09-05 — Concert night</div>
+                        </figcaption>
+                    </div>
+                    <div class="slide" data-date="2010-12-24">
+                        <img data-src="photo4.jpg" alt="memory 4" loading="lazy">
+                        <figcaption>
+                            <div class="caption">2010-12-24 — Snowy dinner</div>
+                        </figcaption>
+                    </div>
+                    <div class="slide" data-date="2015-05-18">
+                        <img data-src="photo5.jpg" alt="memory 5" loading="lazy">
+                        <figcaption>
+                            <div class="caption">2015-05-18 — City lights</div>
+                        </figcaption>
+                    </div>
+                </div>
+                <button class="nav right" aria-label="next">▶</button>
+            </section>
+
+            <div class="dots" id="dots"></div>
+
+            <div class="add-photo-btn-wrap">
+                <button id="addPhotoBtn" class="add-photo-btn">+ Add Photo</button>
+            </div>
+
+            <aside class="extras">
+                <div class="counter">Visitors: <span id="visitorCount">0</span></div>
+                <div class="countdown">Next Valentine: <span id="countdown">—</span></div>
+            </aside>
+
+            <!-- Timeline & Polaroids -->
+            <section class="timeline" id="timeline">
+                <h2>Milestones</h2>
+                <ol id="timelineList"></ol>
+            </section>
+
+            <section class="polaroids" id="polaroids" aria-label="Scattered memories"></section>
+
+            <footer class="footer">A private love archive — made with care ✨</footer>
+        </main>
+
+        <div id="modal" class="modal hidden" role="dialog" aria-hidden="true">
+            <div class="modal-inner glass-card">
+                <button class="close" id="modalClose">✕</button>
+                <h3 id="modalTitle">Memory</h3>
+                <div id="modalContent"></div>
+            </div>
+        </div>
+
+        <div id="uploadModal" class="modal hidden" role="dialog" aria-hidden="true">
+            <div class="modal-inner glass-card">
+                <button class="close" id="uploadModalClose">✕</button>
+                <h3>Add a Photo</h3>
+                <form id="uploadForm">
+                    <label for="uploadPassword">Password:
+                        <input id="uploadPassword" type="password" placeholder="Enter password" required>
+                    </label>
+                    <label for="uploadFile">Select Photo:
+                        <input id="uploadFile" type="file" accept="image/*" required>
+                    </label>
+                    <label for="uploadCaption">Caption (optional):
+                        <input id="uploadCaption" type="text" placeholder="e.g. Beach Day">
+                    </label>
+                    <button type="submit" class="accent">Upload</button>
+                </form>
+            </div>
+        </div>
+
+    </body>
+</html>
