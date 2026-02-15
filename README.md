@@ -1,0 +1,348 @@
+# Valentine's Day 2026 Digital Archive 💗
+
+A password-protected, interactive love archive featuring photo carousel, polaroid gallery, milestone notes, and timeline memories. Built with vanilla JavaScript, Supabase backend, and GSAP animations.
+
+## 🌟 Features
+
+### 1. **Password-Protected Login**
+- SHA-256 hashed validation for security
+- Three answer validation: Date (6/22/22), Color (Purple), Place (Penn Station)
+- Multiple date format support (M/D/YY, MM/DD/YYYY, etc.)
+- Lock screen with glass-morphism design
+
+### 2. **Photo Upload & Management**
+- Upload photos with optional captions to Supabase Cloud Storage
+- Password-protected uploads (password: `love2026`)
+- Photos persist in cloud for both users to access
+- Real-time sync across devices
+- Delete functionality with verification
+- Automatic carousel and polaroid updates
+
+### 3. **Interactive Carousel**
+- Auto-rotating photo slideshow with GSAP animations
+- Manual navigation (previous/next buttons)
+- Pause/play controls
+- Delete buttons on each slide (visible on hover)
+- Full image visibility with `object-fit: contain`
+- Responsive sizing with clamp() for fluid layouts
+
+### 4. **Polaroid Gallery**
+- Photos displayed as scattered polaroids with thumbtack pins 📌
+- Randomized rotation for natural look
+- Hover effects with pink glow (no shake animation)
+- Images show fully without cropping
+- Responsive grid layout
+- Auto-updates when photos added/deleted
+
+### 5. **Notes & Milestones System**
+- Add dated notes with title and description
+- Stored in Supabase `notes` table
+- Delete individual notes
+- Chronological display
+- Glass-card styling matching overall theme
+
+### 6. **Timeline Memories**
+- Hardcoded timeline data showing relationship milestones
+- Styled with emoji markers and dates
+- Responsive text sizing
+
+### 7. **Background Elements**
+- Animated starfield canvas
+- Floating hearts with random motion
+- Dark cosmic theme with pink/purple accents
+
+### 8. **Music Player**
+- Background music ("Te Amo — Franco De Vita")
+- Play/pause/stop controls
+- Volume slider
+- Minimalist controls in header
+
+---
+
+## 📋 Recent Changes (Commit History)
+
+### **Phase 1: Core Delete Functionality** ✅
+**Problem:** Photos kept reappearing after deletion from carousel/polaroids
+**Root Cause:** Supabase Row-Level Security (RLS) missing DELETE policy
+
+**Changes Made:**
+- Added Supabase RLS DELETE policy: `create policy "Allow anon delete" on public.carousel_photos for delete to anon using (true);`
+- Enhanced `deletePhotoFromSupabase()` with `.select()` verification to return deleted row count
+- Added extensive console logging for debugging delete operations
+- Created `extractStoragePathFromUrl()` helper function to parse Supabase URLs correctly
+- Fixed `appendCloudSlidesToCarousel()` to always clear carousel first (prevents stale slides)
+- Consolidated delete handlers into `attachCarouselDeleteHandlers()` function
+
+**Result:** Delete operations now work perfectly with verification (`deletedCount: 1` in console)
+
+---
+
+### **Phase 2: UI Polish & Animation Cleanup** ✅
+**Problem:** Polaroids had distracting shake animation, needed cleaner interactions
+
+**Changes Made:**
+- Removed `@keyframes polaroid-shake` animation definition
+- Removed shake animation from `.polaroid:hover` (kept box-shadow glow)
+- Improved hover states with subtle pink glow effect
+- Moved delete button click handlers into proper event delegation
+- Debounced polaroid updates (100ms) to prevent rapid DOM rebuilds
+
+**Result:** Cleaner, more professional UI with better performance
+
+---
+
+### **Phase 3: Image Visibility Improvements** ✅
+**Problem:** Photos cropped/cut off in carousel and polaroid gallery
+
+**Changes Made:**
+
+#### Carousel Improvements:
+- Changed `.slide` layout: removed flex, added `background: rgba(0, 0, 0, 0.3)` for contrast
+- Changed `.slide img` from `object-fit: cover` to `object-fit: contain`
+- Added padding directly to images: `padding: clamp(0.5rem, 1.5vw, 1rem)`
+- Removed container padding to maximize image viewing area
+- Captions remain as overlays (don't interfere with image space)
+
+#### Polaroid Improvements:
+- Increased polaroid dimensions:
+  - Width: `clamp(140px, 32vw, 200px)` (was 120-180px)
+  - Height: `clamp(160px, 35vw, 230px)` (was 140-200px)
+- Reduced padding for more image space:
+  - `padding: clamp(0.375rem, 1vw, 0.5rem) clamp(0.375rem, 1vw, 0.5rem) clamp(0.5rem, 1.5vw, 0.75rem)`
+- Changed `.polaroid img` from `object-fit: cover` to `object-fit: contain`
+- Images use `flex: 1` to fill available vertical space
+
+**Result:** Photos now display fully without cropping in both carousel and polaroid sections
+
+---
+
+### **Phase 4: Hardcoded Content Removal** ✅
+**Changes Made:**
+- Deleted all 5 hardcoded placeholder photos (`photo1.jpg` through `photo5.jpg`)
+- Carousel now purely Supabase-driven (no fallback images)
+- Empty carousel displays cleanly with no errors
+
+**Result:** Gallery is 100% cloud-based, no local image dependencies
+
+---
+
+## 🛠️ Technical Stack
+
+- **Frontend:** Vanilla JavaScript (ES6 modules), HTML5, CSS3
+- **Backend:** Supabase (PostgreSQL database + Cloud Storage)
+- **Animation:** GSAP 3
+- **Authentication:** SHA-256 Web Crypto API
+- **Styling:** CSS custom properties, clamp() for responsive sizing, glass-morphism effects
+
+---
+
+## 📂 File Structure
+
+```
+valentinesday2026/
+├── index.html          # Main HTML structure
+├── script.js           # Core JavaScript logic (937 lines)
+├── styles.css          # Responsive CSS styling (1176 lines)
+├── FIREBASE_SETUP.md   # Firebase setup instructions (legacy)
+├── SUPABASE_SETUP.md   # Supabase setup guide
+└── README.md           # This file
+```
+
+---
+
+## 🗄️ Supabase Schema
+
+### **Table: `carousel_photos`**
+```sql
+- id (uuid, primary key)
+- image_url (text)
+- caption (text)
+- date (text)
+- created_at (timestamp)
+```
+
+**RLS Policies:**
+- `Allow anon select`: Public read access
+- `Allow anon insert`: Public write access
+- `Allow anon delete`: Public delete access ✨ (Recently added)
+
+### **Table: `notes`**
+```sql
+- id (uuid, primary key)
+- note_date (text)
+- title (text)
+- description (text)
+- created_at (timestamp)
+```
+
+**RLS Policies:**
+- `Allow anon select`: Public read access
+- `Allow anon insert`: Public write access
+- `Allow anon delete`: Public delete access
+
+### **Storage Bucket: `carousel`**
+- Public bucket
+- Stores uploaded photos
+- File naming: `{timestamp}_{sanitized_filename}`
+
+---
+
+## 🔧 Configuration
+
+### **Supabase Credentials** (Set in `script.js`)
+```javascript
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+```
+
+### **Upload Password** (Set in `script.js`)
+```javascript
+const uploadPassword = 'love2026';
+```
+
+### **Login Answers** (Hashed in `script.js`)
+- Date: June 22, 2022 (multiple formats accepted)
+- Color: Purple
+- Place: Penn Station
+
+---
+
+## 🚀 Deployment
+
+### **GitHub Pages**
+1. Repository: `https://github.com/9bitbin/valentinesday2026.github.io.git`
+2. Branch: `master`
+3. Auto-deploys on push
+
+### **Local Development**
+```bash
+# Navigate to project directory
+cd valentinesday2026
+
+# Start a local server (e.g., Five Server, Live Server)
+# Open http://localhost:5500 in browser
+```
+
+---
+
+## 🐛 Debugging Tips
+
+### **Photos Not Deleting:**
+- Check browser console for `deletedCount: 1` message
+- Verify Supabase RLS DELETE policy exists
+- Check that `.select()` is used after `.delete()` query
+
+### **Photos Not Appearing:**
+- Verify Supabase URL and anon key are set
+- Check browser console for fetch errors
+- Check that bucket is set to public
+- Verify RLS SELECT policy exists
+
+### **Upload Failing:**
+- Check upload password matches
+- Verify storage bucket has INSERT policy
+- Check file size limits (default 50MB in Supabase)
+- Look for timeout errors (25s timeout configured)
+
+---
+
+## 📝 Code Highlights
+
+### **Delete Verification Pattern**
+```javascript
+const { data, error } = await supabase
+  .from(CAROUSEL_TABLE)
+  .delete()
+  .eq('id', photoId)
+  .select(); // Returns deleted rows for verification
+
+if (!data || data.length === 0) {
+  console.warn('WARNING: Delete query ran but no rows were deleted!');
+  throw new Error('Photo not found in database');
+}
+```
+
+### **Debounced Polaroid Updates**
+```javascript
+let polaroidDebounce;
+function updatePolaroidsDebounced() {
+  clearTimeout(polaroidDebounce);
+  polaroidDebounce = setTimeout(() => {
+    createPolaroids();
+  }, 100);
+}
+```
+
+### **Responsive Image Sizing**
+```css
+.slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Shows full image without cropping */
+  padding: clamp(0.5rem, 1.5vw, 1rem); /* Responsive padding */
+}
+```
+
+---
+
+## 🎨 Design Philosophy
+
+- **Glass-morphism:** Semi-transparent panels with backdrop blur
+- **Cosmic Theme:** Dark navy background with pink/purple accents
+- **Fluid Typography:** All text uses `clamp()` for responsive sizing
+- **Mobile-First:** Responsive at all breakpoints (320px - 4K)
+- **Performance:** Debounced updates, efficient DOM manipulation
+- **Accessibility:** ARIA labels, semantic HTML, keyboard navigation
+
+---
+
+## 📊 Statistics
+
+- **Total Code:** ~3,298 lines (937 JS + 1,176 CSS + 141 HTML + 44 MD)
+- **Supabase Tables:** 2
+- **Storage Buckets:** 1
+- **Features:** 8 major systems
+- **Delete Handlers:** Consolidated to 1
+- **Animations:** Removed shake, kept fade/glow effects
+
+---
+
+## 🔮 Future Enhancements (Not Currently Implemented)
+
+- ~~EXIF metadata extraction~~ (Attempted but removed due to complexity)
+- Photo editing (crop, rotate, filters)
+- Batch photo upload
+- Search/filter functionality
+- Export timeline as PDF
+- Mobile app version
+- Real-time collaboration indicators
+
+---
+
+## 💖 Credits
+
+**Created with love by:** Your development team
+**For:** A special Valentine's Day 2026 archive
+**Built:** February 2026
+**Theme Song:** "Te Amo" by Franco De Vita
+
+---
+
+## 📄 License
+
+Private project - Not for redistribution
+
+---
+
+## 🆘 Support
+
+For issues or questions:
+1. Check browser console for error messages
+2. Verify Supabase credentials in `script.js`
+3. Review Supabase RLS policies
+4. Check this README for troubleshooting tips
+
+---
+
+**Last Updated:** February 15, 2026
+**Version:** 2.0 (Post-Delete-Fix, Post-EXIF-Removal, Image-Visibility-Enhanced)
