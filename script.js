@@ -2,6 +2,61 @@
 // Use modern APIs (Web Crypto, requestAnimationFrame). Keep code modular and commented.
 
 (async function(){
+  // ---- Firebase (optional: replace with your config from Firebase Console) ----
+  const firebaseConfig = {
+    apiKey: "AIzaSyDFEh3xndHq1YJGmlhYt5AT4dTVsmDT-K4",
+    authDomain: "valentinesday2-2026.firebaseapp.com",
+    projectId: "valentinesday2-2026",
+    storageBucket: "valentinesday2-2026.firebasestorage.app",
+    messagingSenderId: "941515737833",
+    appId: "1:941515737833:web:e6fad015e63e1c13307e78",
+    measurementId: "G-V7270YD0Q4"
+  };
+  const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY';
+  let db = null;
+  let storage = null;
+  let firebaseReady = false;
+  if (typeof firebase !== 'undefined' && hasFirebaseConfig) {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      storage = firebase.storage();
+      firebaseReady = !!db && !!storage;
+    } catch (e) { console.warn('Firebase init failed', e); }
+  }
+
+  const CAROUSEL_COLLECTION = 'carouselPhotos';
+  const CAROUSEL_STORAGE_PATH = 'carousel';
+
+  async function fetchCarouselPhotosFromFirebase() {
+    if (!db) return [];
+    const snap = await db.collection(CAROUSEL_COLLECTION).orderBy('createdAt', 'asc').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+
+  function appendFirebaseSlidesToCarousel(photos) {
+    const carousel = document.getElementById('carousel');
+    if (!carousel || !photos.length) return;
+    const dateStr = new Date().toISOString().split('T')[0];
+    photos.forEach(photo => {
+      const slide = document.createElement('div');
+      slide.className = 'slide';
+      slide.dataset.date = photo.date || dateStr;
+      const url = (photo.imageURL || '').replace(/'/g, "\\'");
+      const cap = (photo.caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${cap}</div></figcaption>`;
+      carousel.appendChild(slide);
+    });
+  }
+
+  async function loadCarouselFromFirebaseAndSetup() {
+    try {
+      const photos = firebaseReady && db ? await fetchCarouselPhotosFromFirebase() : [];
+      appendFirebaseSlidesToCarousel(photos);
+    } catch (e) { console.warn('Firebase carousel load failed', e); }
+    setupCarousel();
+  }
+
   // ---- Utilities ----
   async function sha256(text){
     const enc = new TextEncoder();
@@ -310,54 +365,65 @@
   if(uploadModalClose) uploadModalClose.addEventListener('click', closeUploadModal);
   if(uploadModal) uploadModal.addEventListener('click', (e)=>{ if(e.target===uploadModal) closeUploadModal(); });
 
-  // Photo storage in localStorage
-  const PHOTO_STORAGE_KEY = 'valentinePhotos';
-  function savePhotosToStorage(photos){ localStorage.setItem(PHOTO_STORAGE_KEY, JSON.stringify(photos)); }
-  function loadPhotosFromStorage(){ const stored = localStorage.getItem(PHOTO_STORAGE_KEY); return stored ? JSON.parse(stored) : []; }
-
-  function loadSavedPhotosIntoCarousel(){
-    const savedPhotos = loadPhotosFromStorage();
-    const carousel = document.getElementById('carousel'); if(!carousel) return;
-    savedPhotos.forEach(photo=>{
-      const slide = document.createElement('div'); slide.className='slide'; slide.dataset.date = new Date().toISOString().split('T')[0];
-      slide.innerHTML = `<div style="width:100%;height:100%;background:url('${photo.data}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${photo.caption || 'Uploaded Photo'}</div></figcaption>`;
-      carousel.appendChild(slide);
-    });
-    // reinitialize carousel to include new slides
-    if(slides && slides.length) setupCarousel();
-  }
-
+  // ---- Add Photo: upload to Firebase Storage + Firestore (persists for both of you) ----
   if(uploadForm){
     uploadForm.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const pwd = uploadPasswordInput.value;
       const file = uploadFileInput.files[0];
-      const caption = uploadCaptionInput.value || 'Uploaded Photo';
+      const caption = (uploadCaptionInput.value || 'Uploaded Photo').trim();
 
       if(pwd !== uploadPassword){ alert('Incorrect password'); return; }
       if(!file) { alert('Please select a photo'); return; }
+      if (!firebaseReady || !storage || !db) {
+        if (typeof firebase === 'undefined') {
+          alert('Firebase did not load. Open the site over HTTP (e.g. use GitHub Pages or run a local server), not by opening the file directly.');
+        } else if (!hasFirebaseConfig) {
+          alert('Firebase is not configured. See FIREBASE_SETUP.md and add your config to script.js.');
+        } else {
+          alert('Firebase failed to start. Open the browser console (F12) to see the error.');
+        }
+        return;
+      }
 
-      // convert file to base64
-      const reader = new FileReader();
-      reader.onload = function(evt){
-        const base64 = evt.target.result;
-        const savedPhotos = loadPhotosFromStorage();
-        savedPhotos.push({data: base64, caption: caption, date: new Date().toISOString()});
-        savePhotosToStorage(savedPhotos);
+      const submitBtn = uploadForm.querySelector('button[type="submit"]');
+      const origText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Uploading…';
 
-        // add new slide to carousel
-        const carousel = document.getElementById('carousel'); if(carousel){
-          const slide = document.createElement('div'); slide.className='slide'; slide.dataset.date = new Date().toISOString().split('T')[0];
-          slide.innerHTML = `<div style="width:100%;height:100%;background:url('${base64}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${caption}</div></figcaption>`;
+      try {
+        const path = `${CAROUSEL_STORAGE_PATH}/${Date.now()}_${(file.name || 'photo').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const ref = storage.ref(path);
+        await ref.put(file);
+        const imageURL = await ref.getDownloadURL();
+        const dateStr = new Date().toISOString().split('T')[0];
+        await db.collection(CAROUSEL_COLLECTION).add({
+          imageURL,
+          caption: caption || 'Uploaded Photo',
+          date: dateStr,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        const carousel = document.getElementById('carousel');
+        if(carousel){
+          const slide = document.createElement('div');
+          slide.className = 'slide';
+          slide.dataset.date = dateStr;
+          const urlEsc = imageURL.replace(/'/g, "\\'");
+          const capEsc = (caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          slide.innerHTML = `<div style="width:100%;height:100%;background:url('${urlEsc}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${capEsc}</div></figcaption>`;
           carousel.appendChild(slide);
-          // refresh carousel layout
           setupCarousel();
         }
-
         closeUploadModal();
-        alert('Photo added! 📸');
-      };
-      reader.readAsDataURL(file);
+        alert('Photo added! 📸 It will appear for both of you.');
+      } catch (err) {
+        console.error(err);
+        alert('Upload failed: ' + (err.message || 'check console'));
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
     });
   }
 
@@ -365,13 +431,12 @@
   // init everything on DOMContentLoaded
   function init(){
     resize(); initStars(); animateStars();
-    // spawn subtle hearts periodically
     setInterval(spawnHeart,3000);
-    loadSavedPhotosIntoCarousel();
-    setupCarousel();
     renderTimeline();
     createPolaroids();
     updateCountdown(); setInterval(updateCountdown,60000);
+    // Carousel: load Firebase uploads then setup (static HTML slides + Firebase slides)
+    loadCarouselFromFirebaseAndSetup();
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 
