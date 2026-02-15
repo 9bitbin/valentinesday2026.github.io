@@ -149,6 +149,8 @@
     const first = document.querySelector('.slide'); if(first) sinceDateEl.textContent = first.dataset.date || '—';
     // ensure carousel auto-advances when user unlocks
     startAuto();
+    // auto-start music on unlock (user gesture from Unlock/Demo click allows autoplay)
+    music.play().then(()=> updatePlay()).catch(()=> {});
   }
 
   // ---- Carousel core ----
