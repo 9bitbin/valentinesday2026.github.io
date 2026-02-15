@@ -74,6 +74,13 @@ body::after{content:'';position:fixed;left:0;top:0;width:200px;height:200px;back
 .add-photo-btn:hover{background:#ff1493;box-shadow:0 6px 18px rgba(255,105,180,0.6);transform:scale(1.05)}
 .add-photo-btn:active{transform:scale(0.98)}
 
+/* Add Photo modal: solid background (not transparent) */
+#uploadModal .modal-inner.glass-card{
+  background:linear-gradient(180deg, #1a1538 0%, #0f0d24 100%);
+  backdrop-filter:none;
+  border:1px solid rgba(255,255,255,0.12);
+}
+
 /* Upload Form */
 #uploadForm{display:grid;gap:12px;max-width:100%}
 #uploadForm label{display:flex;flex-direction:column;text-align:left;color:#fff;font-weight:600;font-size:14px}
