@@ -1,40 +1,26 @@
 // script.js — core interactivity: starfield, lock screen validation (hashed), carousel, audio controls
-// Use modern APIs (Web Crypto, requestAnimationFrame). Keep code modular and commented.
+// Uses Supabase for carousel uploads (Storage + Table). Keep code modular and commented.
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 (async function(){
-  // ---- Firebase (optional: replace with your config from Firebase Console) ----
-  const firebaseConfig = {
-    apiKey: "AIzaSyDFEh3xndHq1YJGmlhYt5AT4dTVsmDT-K4",
-    authDomain: "valentinesday2-2026.firebaseapp.com",
-    projectId: "valentinesday2-2026",
-    storageBucket: "valentinesday2-2026.firebasestorage.app",
-    messagingSenderId: "941515737833",
-    appId: "1:941515737833:web:e6fad015e63e1c13307e78",
-    measurementId: "G-V7270YD0Q4"
-  };
-  const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'YOUR_API_KEY';
-  let db = null;
-  let storage = null;
-  let firebaseReady = false;
-  if (typeof firebase !== 'undefined' && hasFirebaseConfig) {
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-      storage = firebase.storage();
-      firebaseReady = !!db && !!storage;
-    } catch (e) { console.warn('Firebase init failed', e); }
+  // ---- Supabase (replace with your project URL + anon key from Supabase Dashboard) ----
+  const SUPABASE_URL = 'https://ydvqlvobfisxmbcoiacp.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_yMwko9VhdVVQ92lWMbFLiA_gs8_tvyd';
+  const supabaseReady = SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+  const supabase = supabaseReady ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+  const CAROUSEL_TABLE = 'carousel_photos';
+  const CAROUSEL_BUCKET = 'carousel';
+
+  async function fetchCarouselPhotosFromSupabase() {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(CAROUSEL_TABLE).select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
   }
 
-  const CAROUSEL_COLLECTION = 'carouselPhotos';
-  const CAROUSEL_STORAGE_PATH = 'carousel';
-
-  async function fetchCarouselPhotosFromFirebase() {
-    if (!db) return [];
-    const snap = await db.collection(CAROUSEL_COLLECTION).orderBy('createdAt', 'asc').get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  }
-
-  function appendFirebaseSlidesToCarousel(photos) {
+  function appendCloudSlidesToCarousel(photos) {
     const carousel = document.getElementById('carousel');
     if (!carousel || !photos.length) return;
     const dateStr = new Date().toISOString().split('T')[0];
@@ -42,18 +28,18 @@
       const slide = document.createElement('div');
       slide.className = 'slide';
       slide.dataset.date = photo.date || dateStr;
-      const url = (photo.imageURL || '').replace(/'/g, "\\'");
+      const url = (photo.image_url || '').replace(/'/g, "\\'");
       const cap = (photo.caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${cap}</div></figcaption>`;
       carousel.appendChild(slide);
     });
   }
 
-  async function loadCarouselFromFirebaseAndSetup() {
+  async function loadCarouselFromCloudAndSetup() {
     try {
-      const photos = firebaseReady && db ? await fetchCarouselPhotosFromFirebase() : [];
-      appendFirebaseSlidesToCarousel(photos);
-    } catch (e) { console.warn('Firebase carousel load failed', e); }
+      const photos = supabaseReady && supabase ? await fetchCarouselPhotosFromSupabase() : [];
+      appendCloudSlidesToCarousel(photos);
+    } catch (e) { console.warn('Supabase carousel load failed', e); }
     setupCarousel();
   }
 
@@ -365,7 +351,7 @@
   if(uploadModalClose) uploadModalClose.addEventListener('click', closeUploadModal);
   if(uploadModal) uploadModal.addEventListener('click', (e)=>{ if(e.target===uploadModal) closeUploadModal(); });
 
-  // ---- Add Photo: upload to Firebase Storage + Firestore (persists for both of you) ----
+  // ---- Add Photo: upload to Supabase Storage + table (persists for both of you) ----
   if(uploadForm){
     uploadForm.addEventListener('submit', async (e)=>{
       e.preventDefault();
@@ -375,14 +361,8 @@
 
       if(pwd !== uploadPassword){ alert('Incorrect password'); return; }
       if(!file) { alert('Please select a photo'); return; }
-      if (!firebaseReady || !storage || !db) {
-        if (typeof firebase === 'undefined') {
-          alert('Firebase did not load. Open the site over HTTP (e.g. use GitHub Pages or run a local server), not by opening the file directly.');
-        } else if (!hasFirebaseConfig) {
-          alert('Firebase is not configured. See FIREBASE_SETUP.md and add your config to script.js.');
-        } else {
-          alert('Firebase failed to start. Open the browser console (F12) to see the error.');
-        }
+      if (!supabaseReady || !supabase) {
+        alert('Supabase is not configured. See SUPABASE_SETUP.md and add SUPABASE_URL + SUPABASE_ANON_KEY to script.js.');
         return;
       }
 
@@ -391,18 +371,37 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Uploading…';
 
+      function resetBtn() {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+
+      const timeoutMs = 25000;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timed out. Check connection and Supabase Storage.')), timeoutMs)
+      );
+
       try {
-        const path = `${CAROUSEL_STORAGE_PATH}/${Date.now()}_${(file.name || 'photo').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        const ref = storage.ref(path);
-        await ref.put(file);
-        const imageURL = await ref.getDownloadURL();
+        const path = `${Date.now()}_${(file.name || 'photo').replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        const { error: uploadError } = await Promise.race([
+          supabase.storage.from(CAROUSEL_BUCKET).upload(path, file, { upsert: false }),
+          timeoutPromise
+        ]);
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage.from(CAROUSEL_BUCKET).getPublicUrl(path);
+        const imageURL = urlData.publicUrl;
         const dateStr = new Date().toISOString().split('T')[0];
-        await db.collection(CAROUSEL_COLLECTION).add({
-          imageURL,
-          caption: caption || 'Uploaded Photo',
-          date: dateStr,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+
+        const { error: insertError } = await Promise.race([
+          supabase.from(CAROUSEL_TABLE).insert({
+            image_url: imageURL,
+            caption: caption || 'Uploaded Photo',
+            date: dateStr
+          }),
+          timeoutPromise
+        ]);
+        if (insertError) throw insertError;
 
         const carousel = document.getElementById('carousel');
         if(carousel){
@@ -418,11 +417,11 @@
         closeUploadModal();
         alert('Photo added! 📸 It will appear for both of you.');
       } catch (err) {
-        console.error(err);
-        alert('Upload failed: ' + (err.message || 'check console'));
+        console.error('Upload error', err);
+        const msg = err.message || String(err);
+        alert('Upload failed: ' + msg);
       } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = origText;
+        resetBtn();
       }
     });
   }
@@ -435,8 +434,8 @@
     renderTimeline();
     createPolaroids();
     updateCountdown(); setInterval(updateCountdown,60000);
-    // Carousel: load Firebase uploads then setup (static HTML slides + Firebase slides)
-    loadCarouselFromFirebaseAndSetup();
+    // Carousel: load Supabase uploads then setup (static HTML slides + cloud slides)
+    loadCarouselFromCloudAndSetup();
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 
