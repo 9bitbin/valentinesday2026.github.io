@@ -41,51 +41,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
   async function deletePhotoFromSupabase(photoId, imagePath) {
     if (!supabase) { alert('Supabase not configured'); return; }
-    console.log('deletePhotoFromSupabase called:', { photoId, imagePath });
-    
     // Delete from storage
-    console.log('Deleting from storage:', imagePath);
     const { error: storageError } = await supabase.storage.from(CAROUSEL_BUCKET).remove([imagePath]);
-    if (storageError) {
-      console.error('Storage delete error:', storageError);
-    } else {
-      console.log('Storage delete successful');
-    }
-    
-    // Delete from database - IMPORTANT: must use `.select()` to get count of deleted rows
-    console.log('Deleting from database:', photoId);
-    const { data, error: dbError } = await supabase
-      .from(CAROUSEL_TABLE)
-      .delete()
-      .eq('id', photoId)
-      .select(); // This returns the deleted rows so we can verify
-    
-    if (dbError) { 
-      console.error('Photo delete error', dbError); 
-      throw dbError; 
-    } else {
-      console.log('Database delete result:', { deletedCount: data ? data.length : 0, data });
-      if (!data || data.length === 0) {
-        console.warn('WARNING: Delete query ran but no rows were deleted!');
-        throw new Error('Photo not found in database');
-      }
-      console.log('Database delete successful - 1 row removed');
-    }
-  }
-
-  function extractStoragePathFromUrl(imageUrl) {
-    if (!imageUrl) return null;
-    try {
-      const urlObj = new URL(imageUrl);
-      const marker = '/carousel/';
-      const idx = urlObj.pathname.indexOf(marker);
-      if (idx !== -1) return urlObj.pathname.slice(idx + marker.length);
-      // Fallback: last path segment
-      const parts = urlObj.pathname.split('/').filter(Boolean);
-      return parts.length ? parts[parts.length - 1] : null;
-    } catch (e) {
-      return null;
-    }
+    if (storageError) console.warn('Storage delete warning', storageError);
+    // Delete from table
+    const { error: dbError } = await supabase.from(CAROUSEL_TABLE).delete().eq('id', photoId);
+    if (dbError) { console.error('Photo delete error', dbError); throw dbError; }
   }
 
   async function fetchCarouselPhotosFromSupabase() {
@@ -121,6 +82,46 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
       const deleteBtn = `<button type="button" class="slide-delete-btn" aria-label="Delete this photo" style="position:absolute;top:10px;right:10px;background:rgba(255,0,0,0.7);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:bold;z-index:10;">✕</button>`;
       slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;position:relative;">${deleteBtn}</div><figcaption><div class="caption">${cap}</div></figcaption>`;
       carousel.appendChild(slide);
+    });
+    // Attach delete handlers to all delete buttons
+    attachPhotoDeleteHandlers();
+  }
+
+  function attachPhotoDeleteHandlers() {
+    document.querySelectorAll('.slide-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const slide = btn.closest('.slide');
+        if (!slide) return;
+        
+        const photoId = slide.dataset.photoId;
+        const imageUrl = slide.dataset.imageUrl;
+        
+        if (!photoId || !imageUrl) {
+          alert('Could not identify photo');
+          return;
+        }
+        
+        const confirmed = confirm('Delete this photo? It will be removed from both carousel and memories.');
+        if (!confirmed) return;
+        
+        try {
+          // Extract path from URL (everything after domain)
+          const urlObj = new URL(imageUrl);
+          const imagePath = urlObj.pathname.split('/').pop();
+          
+          await deletePhotoFromSupabase(photoId, imagePath);
+          alert('Photo deleted! 🗑️');
+          
+          // Reload carousel and polaroids
+          document.getElementById('carousel').innerHTML = '';
+          await loadCarouselFromCloudAndSetup();
+          updatePolaroidsDebounced();
+        } catch (err) {
+          console.error('Delete error', err);
+          alert('Failed to delete photo: ' + (err.message || String(err)));
+        }
+      });
     });
   }
 
@@ -344,7 +345,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
   function attachCarouselDeleteHandlers() {
     document.querySelectorAll('.slide-delete-btn').forEach(btn => {
-      // Remove any existing handlers by cloning
+      // Remove any existing handlers
       const newBtn = btn.cloneNode(true);
       btn.parentNode.replaceChild(newBtn, btn);
       
@@ -353,58 +354,28 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
         e.preventDefault();
         
         const slide = newBtn.closest('.slide');
-        if (!slide) return;
         const photoId = slide.dataset.photoId;
         const imageUrl = slide.dataset.imageUrl;
         
-        console.log('Delete clicked:', { photoId, imageUrl });
+        if(!photoId) return;
         
-        if (!photoId) {
-          alert('Could not identify photo ID');
-          return;
-        }
-        
-        // Extract storage path - handle Supabase public URL format
-        let imagePath = null;
-        if (imageUrl) {
-          try {
-            // Supabase URL format: https://xxx.supabase.co/storage/v1/object/public/carousel/FILENAME
-            const urlObj = new URL(imageUrl);
-            const pathParts = urlObj.pathname.split('/');
-            const carouselIdx = pathParts.indexOf('carousel');
-            if (carouselIdx !== -1 && carouselIdx < pathParts.length - 1) {
-              imagePath = pathParts.slice(carouselIdx + 1).join('/');
-            }
-          } catch (e) {
-            console.warn('URL parse error:', e);
-          }
-        }
-        
-        console.log('Extracted path:', imagePath);
-        
-        if (!imagePath) {
-          alert('Could not extract image path');
-          return;
-        }
-        
-        const confirmed = confirm('Delete this photo? It will be removed everywhere.');
+        const confirmed = confirm('Delete this photo?');
         if(!confirmed) return;
         
         try {
+          // Extract path from full URL
+          const pathMatch = imageUrl.match(/\/carousel\/(.+?)[\?#]?$/);
+          const path = pathMatch ? pathMatch[1] : imageUrl.split('/carousel/')[1];
+          
           if (!supabaseReady || !supabase) {
             alert('Supabase not configured');
             return;
           }
           
-          console.log('Deleting photo:', photoId, imagePath);
-          await deletePhotoFromSupabase(photoId, imagePath);
-          console.log('Delete successful');
-          
-          // Reload carousel and polaroids from Supabase
-          document.getElementById('carousel').innerHTML = '';
-          await loadCarouselFromCloudAndSetup();
-          updatePolaroidsDebounced();
-          alert('Photo deleted! 🗑️');
+          await deletePhotoFromSupabase(photoId, path);
+          slide.remove();
+          setupCarousel();
+          alert('Photo deleted! 📸');
         } catch (err) {
           console.error('Delete error', err);
           alert('Failed to delete: ' + (err.message || String(err)));
@@ -602,6 +573,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     // Debounce layout recalculation to avoid performance issues
     if(layoutRecalcTimer) clearTimeout(layoutRecalcTimer);
     layoutRecalcTimer = setTimeout(() => {
+      // Recreate polaroids with new responsive sizes
+      createPolaroids();
       // Ensure carousel transforms are still correct
       setupCarousel();
     }, 250); // Wait for layout to stabilize before recalculation
