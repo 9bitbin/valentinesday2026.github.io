@@ -60,6 +60,11 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 - Top-bar progress slider with timecodes and seek support
 - Draggable library panel (position saved in localStorage)
 
+### 9. **Glowing Love Story Header**
+- “Our Love Story ★ Since” title uses a glowing, tech-style treatment
+- Hover reveals floating heart particles
+- Click triggers a glint sweep animation
+
 ---
 
 ## 📋 Recent Changes (Commit History)
@@ -173,6 +178,16 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 - Kept `youtube-player.js` as a legacy module (unused)
 
 **Result:** YouTube is no longer required; music is fully owned and shareable
+
+---
+
+### **Phase 8: Love Story Header Effects** ✅
+**Changes Made:**
+- Set the “Since” date to June 22, 2022
+- Added glowing tech-style header text
+- Added hover heart particles + click glint animation
+
+**Result:** A more expressive, interactive title that celebrates the start date
 
 ---
 
@@ -395,7 +410,7 @@ function updatePolaroidsDebounced() {
 
 - **Supabase Tables:** 3 (`carousel_photos`, `notes`, `music_library`)
 - **Storage Buckets:** 2 (`carousel`, `music`)
-- **Major Systems:** 9 (login, carousel, polaroids, notes, timeline, background effects, music library, uploads, stats)
+- **Major Systems:** 10 (login, carousel, polaroids, notes, timeline, background effects, music library, uploads, stats, title effects)
 - **Music Storage:** Fully cloud-based (no local MP3 dependencies)
 
 ---

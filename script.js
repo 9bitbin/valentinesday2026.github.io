@@ -284,6 +284,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   const lockScreen = document.getElementById('lockScreen');
   const main = document.getElementById('main');
   const sinceDateEl = document.getElementById('sinceDate');
+  if (sinceDateEl) sinceDateEl.textContent = 'June 22, 2022';
+  const loveTitle = document.getElementById('loveTitle');
+  if (loveTitle) {
+    loveTitle.addEventListener('click', () => {
+      loveTitle.classList.remove('glinting');
+      void loveTitle.offsetWidth;
+      loveTitle.classList.add('glinting');
+    });
+  }
 
   // Precomputed SHA-256 hashes for correct answers (keep values hidden):
   // You may provide plaintext answers below; they will be hashed at runtime.
@@ -381,8 +390,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     lockScreen.style.display='none'; main.classList.remove('hidden');
     // Show music library panel after login
     if (musicLibraryPanel) musicLibraryPanel.classList.remove('hidden');
-    // set since date from first slide metadata
-    const first = document.querySelector('.slide'); if(first) sinceDateEl.textContent = first.dataset.date || '—';
+    // keep the fixed start date in the header
     // ensure carousel auto-advances when user unlocks
     startAuto();
     // auto-start first track on unlock (user gesture allows autoplay)
