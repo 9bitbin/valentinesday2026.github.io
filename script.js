@@ -12,6 +12,42 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
   const CAROUSEL_TABLE = 'carousel_photos';
   const CAROUSEL_BUCKET = 'carousel';
+  const NOTES_TABLE = 'notes';
+
+  // ---- Notes Functions ----
+  async function fetchNotesFromSupabase() {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from(NOTES_TABLE).select('*').order('note_date', { ascending: false });
+    if (error) { console.warn('Notes fetch error', error); return []; }
+    return data || [];
+  }
+
+  async function addNoteToSupabase(noteDate, noteTitle, noteDescription) {
+    if (!supabase) { alert('Supabase not configured'); return null; }
+    const { data, error } = await supabase.from(NOTES_TABLE).insert([{
+      note_date: noteDate,
+      title: noteTitle,
+      description: noteDescription
+    }]).select();
+    if (error) { console.error('Note insert error', error); throw error; }
+    return data ? data[0] : null;
+  }
+
+  async function deleteNoteFromSupabase(id) {
+    if (!supabase) { alert('Supabase not configured'); return; }
+    const { error } = await supabase.from(NOTES_TABLE).delete().eq('id', id);
+    if (error) { console.error('Note delete error', error); throw error; }
+  }
+
+  async function deletePhotoFromSupabase(photoId, imagePath) {
+    if (!supabase) { alert('Supabase not configured'); return; }
+    // Delete from storage
+    const { error: storageError } = await supabase.storage.from(CAROUSEL_BUCKET).remove([imagePath]);
+    if (storageError) console.warn('Storage delete warning', storageError);
+    // Delete from table
+    const { error: dbError } = await supabase.from(CAROUSEL_TABLE).delete().eq('id', photoId);
+    if (dbError) { console.error('Photo delete error', dbError); throw dbError; }
+  }
 
   async function fetchCarouselPhotosFromSupabase() {
     if (!supabase) return [];
@@ -28,10 +64,53 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
       const slide = document.createElement('div');
       slide.className = 'slide';
       slide.dataset.date = photo.date || dateStr;
+      slide.dataset.photoId = photo.id;
+      slide.dataset.imageUrl = photo.image_url;
       const url = (photo.image_url || '').replace(/'/g, "\\'");
       const cap = (photo.caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${cap}</div></figcaption>`;
+      const deleteBtn = `<button type="button" class="slide-delete-btn" aria-label="Delete this photo" style="position:absolute;top:10px;right:10px;background:rgba(255,0,0,0.7);color:white;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:bold;z-index:10;">✕</button>`;
+      slide.innerHTML = `<div style="width:100%;height:100%;background:url('${url}') center/cover;border-radius:14px;position:relative;">${deleteBtn}</div><figcaption><div class="caption">${cap}</div></figcaption>`;
       carousel.appendChild(slide);
+    });
+    // Attach delete handlers to all delete buttons
+    attachPhotoDeleteHandlers();
+  }
+
+  function attachPhotoDeleteHandlers() {
+    document.querySelectorAll('.slide-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const slide = btn.closest('.slide');
+        if (!slide) return;
+        
+        const photoId = slide.dataset.photoId;
+        const imageUrl = slide.dataset.imageUrl;
+        
+        if (!photoId || !imageUrl) {
+          alert('Could not identify photo');
+          return;
+        }
+        
+        const confirmed = confirm('Delete this photo? It will be removed from both carousel and memories.');
+        if (!confirmed) return;
+        
+        try {
+          // Extract path from URL (everything after domain)
+          const urlObj = new URL(imageUrl);
+          const imagePath = urlObj.pathname.split('/').pop();
+          
+          await deletePhotoFromSupabase(photoId, imagePath);
+          alert('Photo deleted! 🗑️');
+          
+          // Reload carousel and polaroids
+          document.getElementById('carousel').innerHTML = '';
+          await loadCarouselFromCloudAndSetup();
+          updatePolaroidsDebounced();
+        } catch (err) {
+          console.error('Delete error', err);
+          alert('Failed to delete photo: ' + (err.message || String(err)));
+        }
+      });
     });
   }
 
@@ -51,13 +130,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
 
-  // ---- Starfield Canvas ----
+  // ---- Starfield Canvas - Responsive sizing ----
   const canvas = document.getElementById('starfield');
   const ctx = canvas && canvas.getContext('2d');
   let stars = [];
+  
   function resize(){
-    if(!canvas) return; canvas.width = innerWidth; canvas.height = innerHeight;
+    if(!canvas) return; 
+    canvas.width = window.innerWidth; 
+    canvas.height = window.innerHeight;
   }
+  
   function initStars(){
     stars = [];
     const count = Math.round((canvas.width*canvas.height)/80000);
@@ -65,18 +148,46 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
       stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,z:Math.random()*1,rad:Math.random()*1.2+0.2,dx:(Math.random()-0.5)*0.02});
     }
   }
+  
   function drawStars(){
-    if(!ctx) return; ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = 'rgba(6,6,12,0.4)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    if(!ctx) return; 
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = 'rgba(6,6,12,0.4)'; 
+    ctx.fillRect(0,0,canvas.width,canvas.height);
     for(const s of stars){
-      s.x += s.dx; if(s.x<0) s.x=canvas.width; if(s.x>canvas.width) s.x=0;
+      s.x += s.dx; 
+      if(s.x<0) s.x=canvas.width; 
+      if(s.x>canvas.width) s.x=0;
       const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.rad*4);
-      g.addColorStop(0,'rgba(255,255,255,'+(0.8*s.z)+')'); g.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x,s.y,s.rad,0,Math.PI*2); ctx.fill();
+      g.addColorStop(0,'rgba(255,255,255,'+(0.8*s.z)+')'); 
+      g.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = g; 
+      ctx.beginPath(); 
+      ctx.arc(s.x,s.y,s.rad,0,Math.PI*2); 
+      ctx.fill();
     }
   }
-  function animateStars(){ drawStars(); requestAnimationFrame(animateStars); }
-  window.addEventListener('resize',()=>{ resize(); initStars(); });
+  
+  function animateStars(){ 
+    drawStars(); 
+    requestAnimationFrame(animateStars); 
+  }
+  
+  window.addEventListener('resize', () => { 
+    resize(); 
+    initStars();
+    // Recalculate responsive layouts on resize
+    recalculateLayout();
+  });
+  
+  // Handle orientation changes for mobile
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      resize();
+      initStars();
+      recalculateLayout();
+    }, 100);
+  });
 
   // ---- Floating hearts (subtle) ----
   function spawnHeart(){
@@ -168,12 +279,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     const place = document.getElementById('q-place').value;
     const ok = await verifyAnswers(date||'', color||'', place||'');
     const unlockBtn = document.getElementById('unlockBtn');
+    console.log('Validation:', { date, color, place, ok });
+    console.log('Answer hashes:', answersHash);
     if(ok){
       unlockBtn.textContent='Unlocked ✓';
       unlockAnimation().then(unlockEntry);
     } else {
       // shake
       lockScreen.animate([{transform:'translate(-50%,-50%)'},{transform:'translate(calc(-50% -8px),-50%)'},{transform:'translate(calc(-50% +8px),-50%)'},{transform:'translate(-50%,-50%)'}],{duration:600});
+      // Clear the form to allow retry
+      form.reset();
+      unlockBtn.textContent='Unlock';
+      alert('Incorrect answers. Please try again.');
     }
   });
 
@@ -212,6 +329,48 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     // lazy load current and neighbors
     loadSlideImage(idx); loadSlideImage(idx+1); loadSlideImage(idx-1);
     createDots(); startAuto();
+    attachCarouselDeleteHandlers();
+  }
+
+  function attachCarouselDeleteHandlers() {
+    document.querySelectorAll('.slide-delete-btn').forEach(btn => {
+      // Remove any existing handlers
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      
+      newBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const slide = newBtn.closest('.slide');
+        const photoId = slide.dataset.photoId;
+        const imageUrl = slide.dataset.imageUrl;
+        
+        if(!photoId) return;
+        
+        const confirmed = confirm('Delete this photo?');
+        if(!confirmed) return;
+        
+        try {
+          // Extract path from full URL
+          const pathMatch = imageUrl.match(/\/carousel\/(.+?)[\?#]?$/);
+          const path = pathMatch ? pathMatch[1] : imageUrl.split('/carousel/')[1];
+          
+          if (!supabaseReady || !supabase) {
+            alert('Supabase not configured');
+            return;
+          }
+          
+          await deletePhotoFromSupabase(photoId, path);
+          slide.remove();
+          setupCarousel();
+          alert('Photo deleted! 📸');
+        } catch (err) {
+          console.error('Delete error', err);
+          alert('Failed to delete: ' + (err.message || String(err)));
+        }
+      });
+    });
   }
   function applyTransform(el, offset){
     const abs = Math.abs(offset);
@@ -235,13 +394,67 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   function resetAuto(){ stopAuto(); setTimeout(startAuto,6000); }
 
   // dots
-  function createDots(){ const dots = document.getElementById('dots'); dots.innerHTML=''; slides.forEach((s,i)=>{ const b=document.createElement('button'); b.addEventListener('click', ()=>{ goto(i); resetAuto(); }); dots.appendChild(b); }); updateDots(); }
-  function updateDots(){ const buttons = document.querySelectorAll('#dots button'); buttons.forEach((b,i)=>b.classList.toggle('active', i===idx)); }
+  function createDots(){ 
+    const dots = document.getElementById('dots'); 
+    if(!dots) return;
+    dots.innerHTML=''; 
+    slides.forEach((s,i)=>{ 
+      const b=document.createElement('button'); 
+      b.setAttribute('type', 'button');
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+      b.setAttribute('aria-label', `View photo ${i + 1} of ${slides.length}`);
+      b.addEventListener('click', ()=>{ 
+        goto(i); 
+        resetAuto();
+        // Update aria-selected for accessibility
+        updateDotsAria();
+      }); 
+      dots.appendChild(b); 
+    }); 
+    updateDots(); 
+  }
+  
+  function updateDotsAria(){
+    const buttons = document.querySelectorAll('#dots button');
+    buttons.forEach((b,i)=>{
+      b.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+    });
+  }
+  
+  function updateDots(){ 
+    const buttons = document.querySelectorAll('#dots button'); 
+    buttons.forEach((b,i)=>{
+      b.classList.toggle('active', i===idx);
+      b.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+    }); 
+  }
 
-  // swipe support
-  let startX=0, deltaX=0; carousel.addEventListener('touchstart',e=>{ stopAuto(); startX=e.touches[0].clientX; });
-  carousel.addEventListener('touchmove',e=>{ deltaX=e.touches[0].clientX - startX; });
-  carousel.addEventListener('touchend',e=>{ if(Math.abs(deltaX)>40){ if(deltaX<0) next(); else prev(); } deltaX=0; startAuto(); });
+  // swipe support with improved mobile touch handling
+  let startX=0, startY=0, deltaX=0, deltaY=0; 
+  const SWIPE_THRESHOLD = Math.max(40, window.innerWidth * 0.1); // 10% of viewport or 40px, whichever is larger
+  
+  carousel.addEventListener('touchstart', (e) => { 
+    stopAuto(); 
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  
+  carousel.addEventListener('touchmove', (e) => { 
+    deltaX = e.touches[0].clientX - startX;
+    deltaY = e.touches[0].clientY - startY;
+  }, { passive: true });
+  
+  carousel.addEventListener('touchend', (e) => { 
+    // Only trigger swipe if horizontal movement is greater than vertical movement
+    if(Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) { 
+      if(deltaX < 0) next(); 
+      else prev(); 
+    } 
+    deltaX = 0; 
+    deltaY = 0;
+    startAuto(); 
+  }, { passive: true });
 
   // pause on hover
   carousel.addEventListener('mouseenter', stopAuto); carousel.addEventListener('mouseleave', startAuto);
@@ -343,13 +556,79 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   // countdown to next Valentine's Day
   function updateCountdown(){ const now=new Date(); let year=now.getFullYear(); const vDay=new Date(`${year}-02-14T00:00:00`); if(vDay<=now) vDay.setFullYear(year+1); const diff=(vDay-now); const d=Math.floor(diff/86400000); const h=Math.floor((diff%86400000)/3600000); const m=Math.floor((diff%3600000)/60000); document.getElementById('countdown').textContent = `${d}d ${h}h ${m}m`; }
 
-  // ---- Timeline & Polaroid section ----
+  // ---- Responsive Layout Recalculation ----
+  let layoutRecalcTimer = null;
+  function recalculateLayout(){
+    // Debounce layout recalculation to avoid performance issues
+    if(layoutRecalcTimer) clearTimeout(layoutRecalcTimer);
+    layoutRecalcTimer = setTimeout(() => {
+      // Recreate polaroids with new responsive sizes
+      createPolaroids();
+      // Ensure carousel transforms are still correct
+      setupCarousel();
+    }, 250); // Wait for layout to stabilize before recalculation
+  }
+
   const timelineData = [
     {date:'2006-02-14', title:'We met', text:'That unforgettable first meeting.'},
     {date:'2006-03-01', title:'First Kiss', text:'Under the streetlight.'},
     {date:'2007-06-21', title:'Roadtrip', text:'Windows down, music up.'},
     {date:'2010-12-24', title:'Snowy Dinner', text:'Cozy and bright.'}
   ];
+
+  let notesFromSupabase = [];
+
+  async function renderNotes() {
+    try {
+      notesFromSupabase = await fetchNotesFromSupabase();
+    } catch (e) {
+      console.warn('Failed to fetch notes', e);
+      notesFromSupabase = [];
+    }
+    
+    const list = document.getElementById('timelineList'); 
+    if (!list) return; 
+    
+    list.innerHTML = '';
+    
+    // Show notes from Supabase
+    if (notesFromSupabase.length > 0) {
+      notesFromSupabase.forEach(note => {
+        const li = document.createElement('li');
+        li.dataset.noteId = note.id;
+        li.innerHTML = `
+          <div class="date">${note.note_date}</div>
+          <div class="title">${(note.title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          <div class="desc">${(note.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          <button type="button" class="note-delete-btn" data-note-id="${note.id}" style="background:rgba(255,0,0,0.7);color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:8px;font-size:12px;">Delete</button>
+        `;
+        list.appendChild(li);
+        
+        // Add delete handler
+        const deleteBtn = li.querySelector('.note-delete-btn');
+        deleteBtn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const id = note.id;
+          const confirmed = confirm('Delete this note?');
+          if(!confirmed) return;
+          
+          try {
+            await deleteNoteFromSupabase(id);
+            li.remove();
+            alert('Note deleted! 🗑️');
+            await renderNotes();
+          } catch (err) {
+            console.error('Delete error', err);
+            alert('Failed to delete: ' + (err.message || String(err)));
+          }
+        });
+      });
+    } else {
+      const li = document.createElement('li');
+      li.innerHTML = '<div class="desc" style="color:#999;font-style:italic;">No notes yet. Add your first note! 💑</div>';
+      list.appendChild(li);
+    }
+  }
 
   function renderTimeline(){
     const list = document.getElementById('timelineList'); if(!list) return; list.innerHTML='';
@@ -360,28 +639,70 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     });
   }
 
-  function createPolaroids(){
-    const container = document.getElementById('polaroids'); if(!container) return; container.innerHTML='';
-    const images = [
-      {src:'photo1.jpg',label:'First Kiss'},
-      {src:'photo2.jpg',label:'Roadtrip'},
-      {src:'photo3.jpg',label:'Concert'},
-      {src:'photo4.jpg',label:'Snow Dinner'},
-      {src:'photo5.jpg',label:'City Lights'}
-    ];
-    const w = container.clientWidth || window.innerWidth;
-    const h = 260;
-    images.forEach((it,i)=>{
-      const p = document.createElement('div'); p.className='polaroid';
-      const left = Math.random()*(w-160); const top = Math.random()*(h-120);
-      const rot = (Math.random()*30)-15;
-      p.style.left = left+'px'; p.style.top = top+'px'; p.style.transform = `rotate(${rot}deg)`;
-      p.innerHTML = `<img data-src="${it.src}" alt="${it.label}"><div class="label">${it.label}</div>`;
-      p.addEventListener('click', ()=>{ openModal(it.label, `<img src="${it.src}" style="max-width:90%;height:auto;border-radius:8px">`); });
+  // Debounce polaroid updates to prevent flashing
+  let polaroidUpdateTimer = null;
+  async function updatePolaroidsDebounced() {
+    if (polaroidUpdateTimer) clearTimeout(polaroidUpdateTimer);
+    polaroidUpdateTimer = setTimeout(() => {
+      createPolaroids();
+      polaroidUpdateTimer = null;
+    }, 100);
+  }
+
+  async function createPolaroids(){
+    const container = document.getElementById('polaroids'); 
+    if(!container) return; 
+    container.innerHTML='';
+    
+    // Fetch images from Supabase carousel
+    let photos = [];
+    try {
+      photos = await fetchCarouselPhotosFromSupabase();
+    } catch (e) {
+      console.warn('Failed to fetch carousel photos for polaroids', e);
+      photos = [];
+    }
+    
+    // If no Supabase photos, show empty state
+    if (photos.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:#999;font-style:italic;padding:20px;text-align:center;width:100%;';
+      empty.textContent = 'No memories pinned yet. Upload photos to see them here! 📸';
+      container.appendChild(empty);
+      return;
+    }
+    
+    // Create polaroid for each photo
+    photos.forEach((photo, i) => {
+      const p = document.createElement('div'); 
+      p.className = 'polaroid';
+      p.dataset.photoId = photo.id;
+      // Random slight rotation for natural scattered look
+      const rotation = (Math.random() - 0.5) * 8; // -4 to 4 degrees
+      p.style.transform = `rotate(${rotation}deg)`;
+      
+      const imageUrl = photo.image_url || '';
+      const caption = (photo.caption || 'Memory').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      
+      p.innerHTML = `
+        <div class="polaroid-inner">
+          <div class="thumbtack">📌</div>
+          <img data-src="${imageUrl.replace(/"/g, '&quot;')}" alt="${caption}" loading="lazy">
+          <div class="label">${caption}</div>
+        </div>
+      `;
+      
+      p.addEventListener('click', () => { 
+        openModal(caption, `<img src="${imageUrl}" style="max-width:90%;height:auto;border-radius:8px" alt="${caption}">`); 
+      });
+      
       container.appendChild(p);
     });
+    
     // lazy load polaroid images
-    document.querySelectorAll('.polaroid img').forEach(img=>{ if(img.dataset.src) img.src = img.dataset.src; });
+    document.querySelectorAll('.polaroid img').forEach(img => { 
+      if(img.dataset.src) img.src = img.dataset.src; 
+    });
   }
 
   // Modal helpers
@@ -391,7 +712,68 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
   if(modalClose) modalClose.addEventListener('click', closeModal);
   modal && modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
 
-  // ---- Photo Upload Feature ----
+  // ---- Notes Feature (Supabase) ----
+  const noteModal = document.getElementById('noteModal');
+  const noteModalClose = document.getElementById('noteModalClose');
+  const addNoteBtn = document.getElementById('addNoteBtn');
+  const noteForm = document.getElementById('noteForm');
+  const noteDate = document.getElementById('noteDate');
+  const noteTitle = document.getElementById('noteTitle');
+  const noteDescription = document.getElementById('noteDescription');
+
+  function openNoteModal() { 
+    if(!noteModal) return; 
+    // Set today's date as default
+    const today = new Date().toISOString().split('T')[0];
+    noteDate.value = today;
+    noteModal.classList.remove('hidden'); 
+    noteModal.setAttribute('aria-hidden','false');
+  }
+  
+  function closeNoteModal() { 
+    if(!noteModal) return; 
+    noteModal.classList.add('hidden'); 
+    noteModal.setAttribute('aria-hidden','true'); 
+    noteForm.reset();
+  }
+
+  if(addNoteBtn) addNoteBtn.addEventListener('click', openNoteModal);
+  if(noteModalClose) noteModalClose.addEventListener('click', closeNoteModal);
+  if(noteModal) noteModal.addEventListener('click', (e)=>{ if(e.target===noteModal) closeNoteModal(); });
+
+  if(noteForm) {
+    noteForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const date = noteDate.value;
+      const title = noteTitle.value;
+      const description = noteDescription.value;
+
+      if (!supabaseReady || !supabase) {
+        alert('Supabase is not configured.');
+        return;
+      }
+
+      const submitBtn = noteForm.querySelector('button[type="submit"]');
+      const origText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Adding…';
+
+      try {
+        await addNoteToSupabase(date, title, description);
+        closeNoteModal();
+        alert('Note added! 📝');
+        await renderNotes();
+      } catch (err) {
+        console.error('Note add error', err);
+        alert('Failed to add note: ' + (err.message || String(err)));
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+    });
+  }
+
+  // Photo Upload Feature ----
   const uploadModal = document.getElementById('uploadModal');
   const uploadModalClose = document.getElementById('uploadModalClose');
   const addPhotoBtn = document.getElementById('addPhotoBtn');
@@ -462,19 +844,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
         ]);
         if (insertError) throw insertError;
 
-        const carousel = document.getElementById('carousel');
-        if(carousel){
-          const slide = document.createElement('div');
-          slide.className = 'slide';
-          slide.dataset.date = dateStr;
-          const urlEsc = imageURL.replace(/'/g, "\\'");
-          const capEsc = (caption || 'Uploaded Photo').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          slide.innerHTML = `<div style="width:100%;height:100%;background:url('${urlEsc}') center/cover;border-radius:14px;"></div><figcaption><div class="caption">${capEsc}</div></figcaption>`;
-          carousel.appendChild(slide);
-          setupCarousel();
-        }
         closeUploadModal();
         alert('Photo added! 📸 It will appear for both of you.');
+        
+        // Reload carousel to get all photos with proper IDs
+        document.getElementById('carousel').innerHTML = '';
+        await loadCarouselFromCloudAndSetup();
+        // Also update polaroids (debounced to prevent flashing)
+        updatePolaroidsDebounced();
       } catch (err) {
         console.error('Upload error', err);
         const msg = err.message || String(err);
@@ -487,15 +864,35 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 
   // init everything on DOMContentLoaded
-  function init(){
-    resize(); initStars(); animateStars();
-    setInterval(spawnHeart,3000);
-    renderTimeline();
-    createPolaroids();
-    updateCountdown(); setInterval(updateCountdown,60000);
+  async function init(){
+    resize(); 
+    initStars(); 
+    animateStars();
+    setInterval(spawnHeart, 3000);
+    await renderNotes();
+    await createPolaroids();
+    updateCountdown(); 
+    setInterval(updateCountdown, 60000);
     // Carousel: load Supabase uploads then setup (static HTML slides + cloud slides)
-    loadCarouselFromCloudAndSetup();
+    await loadCarouselFromCloudAndSetup();
+    
+    // Ensure layout responds to viewport changes
+    // Add listener for when content actually resizes (after animations, etc.)
+    if(window.ResizeObserver){
+      const mainEl = document.getElementById('main');
+      if(mainEl){
+        const observer = new ResizeObserver(() => {
+          // Only recalculate if main is not hidden
+          if(!mainEl.classList.contains('hidden')){
+            recalculateLayout();
+          }
+        });
+        observer.observe(mainEl);
+      }
+    }
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+  
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); 
+  else init();
 
 })();

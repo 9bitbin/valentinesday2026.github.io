@@ -39,73 +39,48 @@
 
         <main id="main" class="hidden">
             <header class="topbar">
-                <h1>Our Love Story ★ Since <span id="sinceDate">—</span></h1>
-                <div class="now-playing" id="nowPlaying">
+                <div class="header-title">
+                    <h1>Our Love Story ★ Since <span id="sinceDate">—</span></h1>
+                </div>
+                <div class="now-playing" id="nowPlaying" role="region" aria-label="Music player">
                     <div class="cd" aria-hidden="true"></div>
                     <div class="song-info">
                         <div id="songTitle" class="song-title">—</div>
                         <div class="audio-controls">
                             <button id="prevBtn" class="rocker-btn" type="button" aria-label="previous track">⏮</button>
-                            <button id="playPause" class="play-btn" type="button">Play</button>
+                            <button id="playPause" class="play-btn" type="button" aria-label="play or pause music">Play</button>
                             <button id="stopBtn" class="rocker-btn" type="button" aria-label="stop">⏹</button>
                             <button id="nextBtn" class="rocker-btn" type="button" aria-label="next track">⏭</button>
-                            <input id="volumeSlider" type="range" min="0" max="100" value="80" aria-label="volume">
+                            <input id="volumeSlider" type="range" min="0" max="100" value="80" aria-label="volume control">
                         </div>
                     </div>
                 </div>
             </header>
 
-            <section class="carousel-wrap">
-                <button class="nav left" aria-label="previous">◀</button>
-                <div class="carousel" id="carousel">
-                    <div class="slide" data-date="2022-06-22">
-                        <img data-src="photo1.jpg" alt="memory 1" loading="lazy">
-                        <figcaption>
-                            <div class="caption">2022-06-22 — Our first kiss</div>
-                        </figcaption>
-                    </div>
-                    <div class="slide" data-date="2007-06-21">
-                        <img data-src="photo2.jpg" alt="memory 2" loading="lazy">
-                        <figcaption>
-                            <div class="caption">2007-06-21 — Roadtrip</div>
-                        </figcaption>
-                    </div>
-                    <div class="slide" data-date="2008-09-05">
-                        <img data-src="photo3.jpg" alt="memory 3" loading="lazy">
-                        <figcaption>
-                            <div class="caption">2008-09-05 — Concert night</div>
-                        </figcaption>
-                    </div>
-                    <div class="slide" data-date="2010-12-24">
-                        <img data-src="photo4.jpg" alt="memory 4" loading="lazy">
-                        <figcaption>
-                            <div class="caption">2010-12-24 — Snowy dinner</div>
-                        </figcaption>
-                    </div>
-                    <div class="slide" data-date="2015-05-18">
-                        <img data-src="photo5.jpg" alt="memory 5" loading="lazy">
-                        <figcaption>
-                            <div class="caption">2015-05-18 — City lights</div>
-                        </figcaption>
-                    </div>
+            <section class="carousel-wrap" role="region" aria-label="Photo carousel">
+                <button class="nav left" aria-label="View previous photo" type="button">◀</button>
+                <div class="carousel" id="carousel" role="img" aria-live="polite" aria-label="Carousel showing memories from our relationship">
                 </div>
-                <button class="nav right" aria-label="next">▶</button>
+                <button class="nav right" aria-label="View next photo" type="button">▶</button>
             </section>
 
-            <div class="dots" id="dots"></div>
+            <div class="dots" id="dots" role="tablist" aria-label="Photo selection"></div>
 
             <div class="add-photo-btn-wrap">
-                <button id="addPhotoBtn" class="add-photo-btn">+ Add Photo</button>
+                <button id="addPhotoBtn" class="add-photo-btn" type="button">+ Add Photo</button>
             </div>
 
-            <aside class="extras">
+            <aside class="extras" role="region" aria-label="Statistics">
                 <div class="counter">Visitors: <span id="visitorCount">0</span></div>
                 <div class="countdown">Next Valentine: <span id="countdown">—</span></div>
             </aside>
 
-            <!-- Timeline & Polaroids -->
+            <!-- Notes Section -->
             <section class="timeline" id="timeline">
-                <h2>Milestones</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                    <h2>Notes</h2>
+                    <button id="addNoteBtn" class="add-photo-btn" type="button" style="margin:0;">+ Add Note</button>
+                </div>
                 <ol id="timelineList"></ol>
             </section>
 
@@ -119,6 +94,25 @@
                 <button class="close" id="modalClose">✕</button>
                 <h3 id="modalTitle">Memory</h3>
                 <div id="modalContent"></div>
+            </div>
+        </div>
+
+        <div id="noteModal" class="modal hidden" role="dialog" aria-hidden="true">
+            <div class="modal-inner glass-card">
+                <button class="close" id="noteModalClose">✕</button>
+                <h3>Add a Note</h3>
+                <form id="noteForm">
+                    <label for="noteDate">Date:
+                        <input id="noteDate" type="date" required>
+                    </label>
+                    <label for="noteTitle">Title:
+                        <input id="noteTitle" type="text" placeholder="e.g. Our Anniversary" required>
+                    </label>
+                    <label for="noteDescription">Description:
+                        <textarea id="noteDescription" placeholder="Write your note here..." required style="min-height:100px;resize:vertical;"></textarea>
+                    </label>
+                    <button type="submit" class="accent">Add Note</button>
+                </form>
             </div>
         </div>
 
