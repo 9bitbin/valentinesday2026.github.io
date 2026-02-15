@@ -286,13 +286,13 @@ const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
 ### **Upload Password** (Set in `script.js`)
 ```javascript
-const uploadPassword = 'love2026';
+const uploadPassword = 'your-upload-password';
 ```
 
 ### **Login Answers** (Hashed in `script.js`)
-- Date: June 22, 2022 (multiple formats accepted)
-- Color: Purple
-- Place: Penn Station
+- Date: 07/04/2022 (example; multiple formats accepted)
+- Color: Blue (example)
+- Place: Central Park (example)
 
 ---
 
