@@ -191,6 +191,17 @@ A password-protected, interactive love archive featuring photo carousel, polaroi
 
 ---
 
+### **Phase 9: Login Screen Cleanup** ✅
+**Changes Made:**
+- Removed the `Demo (skip)` button from the lock screen
+- Removed the `demoBtn` bypass event listener from JavaScript
+- Removed unused `.ghost` button styles from CSS
+- Kept the `Unlock` button centered in the login controls
+
+**Result:** Simpler, cleaner login UX with no demo bypass path
+
+---
+
 ## 🛠️ Technical Stack
 
 - **Frontend:** Vanilla JavaScript (ES6 modules), HTML5, CSS3

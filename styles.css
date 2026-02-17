@@ -158,23 +158,6 @@ form#unlockForm input::-webkit-calendar-picker-indicator {
   transform: scale(0.98);
 }
 
-.ghost {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: clamp(0.625rem, 2vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
-  border-radius: 999px;
-  color: #fff;
-  cursor: pointer;
-  font-size: clamp(0.875rem, 2.5vw, 1rem);
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.ghost:hover {
-  background: rgba(255, 105, 180, 0.2);
-  border-color: var(--pink);
-}
-
 #main {
   position: relative;
   z-index: 10;
@@ -1453,8 +1436,7 @@ input:focus {
     margin-top: 0.75rem;
   }
 
-  .accent,
-  .ghost {
+  .accent {
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
   }

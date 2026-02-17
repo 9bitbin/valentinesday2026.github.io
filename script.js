@@ -354,9 +354,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     return okDate && okColor && okPlace;
   }
 
-  // If you want to quickly demo, allow demo button to bypass
-  document.getElementById('demoBtn').addEventListener('click', unlockEntry);
-
   form.addEventListener('submit', async function(e){
     e.preventDefault();
     const date = document.getElementById('q-date').value;
