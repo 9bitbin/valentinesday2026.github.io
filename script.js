@@ -248,12 +248,25 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
     drawStars(); 
     requestAnimationFrame(animateStars); 
   }
+
+  let lastViewportWidth = window.innerWidth;
+  let lastViewportHeight = window.innerHeight;
   
   window.addEventListener('resize', () => { 
+    const nextWidth = window.innerWidth;
+    const nextHeight = window.innerHeight;
+    const widthChanged = Math.abs(nextWidth - lastViewportWidth) > 1;
+    const significantHeightChange = Math.abs(nextHeight - lastViewportHeight) > 140;
+
     resize(); 
     initStars();
-    // Recalculate responsive layouts on resize
-    recalculateLayout();
+
+    // On mobile, ignore tiny height-only changes caused by browser UI hide/show while scrolling
+    if (widthChanged || significantHeightChange) {
+      recalculateLayout();
+      lastViewportWidth = nextWidth;
+      lastViewportHeight = nextHeight;
+    }
   });
   
   // Handle orientation changes for mobile
@@ -1078,6 +1091,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
   function initLibraryDrag() {
     if (!musicLibraryPanel) return;
+
+    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    if (isTouchDevice) {
+      // Keep panel anchored on touch devices to avoid accidental dragging while scrolling
+      musicLibraryPanel.style.left = 'auto';
+      musicLibraryPanel.style.right = '5px';
+      musicLibraryPanel.style.top = '80px';
+      return;
+    }
+
     const header = musicLibraryPanel.querySelector('.library-header');
     if (!header) return;
 
